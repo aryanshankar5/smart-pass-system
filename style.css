@@ -1811,3 +1811,70 @@ select.form-control {
     background-color: #FFA500;
     color: white;
 }
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+.admin-table th,
+.admin-table td {
+  border-bottom: 1px solid var(--color-border);
+  padding: 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.admin-table th {
+  font-weight: 600;
+  background: var(--color-secondary);
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.status-active {
+  color: green;
+  font-weight: 600;
+}
+
+.status-revoked {
+  color: red;
+  font-weight: 600;
+}
+
+.form-message {
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.error-text {
+  color: red;
+  font-weight: 500;
+}
+
+.success-card,
+.error-card {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 10px;
+}
+
+.success-card {
+  border: 1px solid rgba(0, 128, 0, 0.25);
+  background: rgba(0, 128, 0, 0.08);
+}
+
+.error-card {
+  border: 1px solid rgba(255, 0, 0, 0.25);
+  background: rgba(255, 0, 0, 0.08);
+}
+
+.verification-result {
+  margin-top: 16px;
+}

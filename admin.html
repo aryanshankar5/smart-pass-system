@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Pass Admin Portal</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="admin.js" defer></script>
+</head>
+<body>
+  <div id="admin-login-page" class="screen active">
+    <div class="login-container">
+      <div class="login-card">
+        <div class="logo-section">
+          <div class="logo-placeholder admin-logo">
+            <div class="logo-text">ADMIN</div>
+          </div>
+          <h1>Smart Pass Admin Portal</h1>
+          <p>BIT Mesra Mess Verification System</p>
+        </div>
+
+        <div class="login-form">
+          <h2>Admin Login</h2>
+
+          <div class="form-group">
+            <input type="text" id="admin-username" class="form-control" placeholder="Username" />
+          </div>
+
+          <div class="form-group">
+            <input type="password" id="admin-password" class="form-control" placeholder="Password" />
+          </div>
+
+          <button class="btn btn--primary btn--full-width" onclick="adminLogin()">
+            Login
+          </button>
+
+          <div class="switch-mode">
+            <p>
+              Forgot password?
+              <button class="link-btn" onclick="showForgotPassword()">Reset Password</button>
+            </p>
+            <p>
+              Student portal?
+              <a href="index.html" class="link-btn">Open Student Portal</a>
+            </p>
+          </div>
+
+          <p id="admin-login-message" class="form-message"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="forgot-password-page" class="screen">
+    <div class="login-container">
+      <div class="login-card">
+        <div class="login-form">
+          <h2>Reset Admin Password</h2>
+
+          <div class="form-group">
+            <input type="text" id="reset-username" class="form-control" placeholder="Admin username" />
+          </div>
+
+          <div class="form-group">
+            <input type="text" id="reset-code" class="form-control" placeholder="Reset code" />
+          </div>
+
+          <div class="form-group">
+            <input type="password" id="new-password" class="form-control" placeholder="New password" />
+          </div>
+
+          <button class="btn btn--primary btn--full-width" onclick="resetAdminPassword()">
+            Reset Password
+          </button>
+
+          <div class="switch-mode">
+            <button class="link-btn" onclick="showAdminLogin()">Back to Login</button>
+          </div>
+
+          <p id="reset-message" class="form-message"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="admin-dashboard-page" class="screen">
+    <nav class="navbar admin-nav">
+      <div class="nav-content">
+        <div class="logo">Smart Pass Admin</div>
+        <button class="btn btn--outline btn--sm" onclick="adminLogout()">Logout</button>
+      </div>
+    </nav>
+
+    <div class="admin-content">
+      <div class="admin-stats">
+        <div class="stat-card">
+          <div class="stat-number" id="total-students">0</div>
+          <div class="stat-label">Students</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-number" id="active-students">0</div>
+          <div class="stat-label">Active Access</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-number" id="revoked-students">0</div>
+          <div class="stat-label">Revoked Access</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>QR Verification</h3>
+        <p>Paste scanned QR data below and verify the student meal pass.</p>
+
+        <textarea id="qr-input" class="form-control" rows="6" placeholder="Paste QR data here"></textarea>
+
+        <button class="btn btn--primary" onclick="verifyQRFromInput()">
+          Verify QR
+        </button>
+
+        <button class="btn btn--secondary" onclick="markQRUsed()">
+          Mark as Used
+        </button>
+
+        <div id="qr-result" class="verification-result"></div>
+      </div>
+
+      <div class="card">
+        <h3>Student Access Control</h3>
+
+        <input 
+          type="text" 
+          id="student-search" 
+          class="form-control" 
+          placeholder="Search by name, roll no, email or hostel"
+          oninput="filterStudents()"
+        />
+
+        <div id="students-table-container"></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html> 

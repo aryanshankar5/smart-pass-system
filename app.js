@@ -53,15 +53,15 @@ const appData = {
         {
             id: "breakfast",
             name: "Breakfast",
-            startTime: "00:01",
-            endTime: "01:46",
+            startTime: "00:30",
+            endTime: "09:00",
             displayTime: "7:30 AM - 9:00 AM"
         },
         {
             id: "lunch", 
             name: "Lunch",
-            startTime: "11:30",
-            endTime: "14:00", 
+            startTime: "12:30",
+            endTime: "16:00", 
             displayTime: "12:30 PM - 2:00 PM"
         },
         {
@@ -176,9 +176,17 @@ async function handleGoogleResponse(response) {
     
     try {
         // Send the Google JWT token to our backend
-        const result = await apiCall('/api/student/login', 'POST', {
-            token: response.credential
-        });
+            let deviceId = localStorage.getItem('smartpass_device_id');
+
+            if (!deviceId) {
+                deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substring(2);
+                localStorage.setItem('smartpass_device_id', deviceId);
+            }
+
+            const result = await apiCall('/api/student/login', 'POST', {
+                token: response.credential,
+                deviceId: deviceId
+            });
         
         if (result.success) {
             currentUser = result.user;
