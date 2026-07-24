@@ -308,12 +308,73 @@ app.post('/api/student/demo-login', (req, res) => {
   }
 });
 
+async function saveLoginLog({
+  email = null,
+  rollNo = null,
+  studentName = null,
+  loginStatus = 'failed',
+  reason = '',
+  deviceId = null,
+  req
+}) {
+  try {
+    const ipAddress =
+      req.headers['x-forwarded-for'] ||
+      req.socket?.remoteAddress ||
+      req.ip ||
+      null;
+
+    const userAgent = req.headers['user-agent'] || null;
+
+    await pool.query(
+      `
+      INSERT INTO login_logs (
+        email,
+        roll_no,
+        student_name,
+        login_status,
+        reason,
+        device_id,
+        ip_address,
+        user_agent
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `,
+      [
+        email,
+        rollNo,
+        studentName,
+        loginStatus,
+        reason,
+        deviceId,
+        ipAddress,
+        userAgent
+      ]
+    );
+  } catch (error) {
+    console.error('Login log save error:', error.message);
+  }
+}
+
+
 // Student Login with Google OAuth
 app.post('/api/student/login', async (req, res) => {
+  let email = null;
+  let deviceId = null;
+
   try {
-    const { token, deviceId } = req.body;
+    const body = req.body;
+    const token = body.token;
+    deviceId = body.deviceId;
 
     if (!token) {
+      await saveLoginLog({
+        loginStatus: 'failed',
+        reason: 'No authentication token provided',
+        deviceId,
+        req
+      });
+
       return res.status(400).json({
         success: false,
         message: 'No authentication token provided'
@@ -328,13 +389,21 @@ app.post('/api/student/login', async (req, res) => {
     });
 
     const payload = ticket.getPayload();
-    const email = String(payload.email || '').toLowerCase();
+    email = String(payload.email || '').toLowerCase();
     const googleName = payload.name;
     const photo = payload.picture;
 
     console.log('Google OAuth verification successful for:', email);
 
     if (!email.endsWith('@bitmesra.ac.in')) {
+      await saveLoginLog({
+        email,
+        loginStatus: 'failed',
+        reason: 'Non BIT Mesra email used',
+        deviceId,
+        req
+      });
+
       return res.status(400).json({
         success: false,
         message: 'Please use your BIT Mesra college Gmail account (@bitmesra.ac.in)'
@@ -350,6 +419,9 @@ app.post('/api/student/login', async (req, res) => {
         hostel,
         email,
         access_status,
+        access_from,
+        access_until,
+        access_reason,
         device_id,
         device_locked
       FROM students
@@ -359,6 +431,14 @@ app.post('/api/student/login', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      await saveLoginLog({
+        email,
+        loginStatus: 'failed',
+        reason: 'Email not found in student database',
+        deviceId,
+        req
+      });
+
       return res.status(403).json({
         success: false,
         message: 'Your email is not registered in the Smart Pass student database. Please contact the hostel/mess admin.'
@@ -366,15 +446,90 @@ app.post('/api/student/login', async (req, res) => {
     }
 
     const dbStudent = result.rows[0];
+    const now = new Date();
 
     if (dbStudent.access_status === 'revoked') {
+      const accessUntil = dbStudent.access_until ? new Date(dbStudent.access_until) : null;
+
+      if (!accessUntil || accessUntil > now) {
+        await saveLoginLog({
+          email,
+          rollNo: dbStudent.roll_no,
+          studentName: dbStudent.student_name,
+          loginStatus: 'failed',
+          reason: dbStudent.access_reason || 'Access revoked by admin',
+          deviceId,
+          req
+        });
+
+        return res.status(403).json({
+          success: false,
+          message: dbStudent.access_reason
+            ? `Your Smart Pass access has been revoked. Reason: ${dbStudent.access_reason}`
+            : 'Your Smart Pass access has been revoked. Please contact the admin.'
+        });
+      }
+
+      await pool.query(
+        `
+        UPDATE students
+        SET access_status = 'active',
+            access_reason = NULL,
+            access_until = NULL,
+            access_updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        `,
+        [dbStudent.id]
+      );
+
+      dbStudent.access_status = 'active';
+    }
+
+    if (dbStudent.access_from && new Date(dbStudent.access_from) > now) {
+      await saveLoginLog({
+        email,
+        rollNo: dbStudent.roll_no,
+        studentName: dbStudent.student_name,
+        loginStatus: 'failed',
+        reason: 'Access period has not started yet',
+        deviceId,
+        req
+      });
+
       return res.status(403).json({
         success: false,
-        message: 'Your Smart Pass access has been revoked. Please contact the admin.'
+        message: 'Your Smart Pass access period has not started yet.'
+      });
+    }
+
+    if (dbStudent.access_until && new Date(dbStudent.access_until) < now) {
+      await saveLoginLog({
+        email,
+        rollNo: dbStudent.roll_no,
+        studentName: dbStudent.student_name,
+        loginStatus: 'failed',
+        reason: 'Temporary access expired',
+        deviceId,
+        req
+      });
+
+      return res.status(403).json({
+        success: false,
+        message: 'Your temporary Smart Pass access has expired. Please contact admin.'
       });
     }
 
     if (dbStudent.device_locked && dbStudent.device_id && deviceId && dbStudent.device_id !== deviceId) {
+      await saveLoginLog({
+        email,
+        rollNo: dbStudent.roll_no,
+        studentName: dbStudent.student_name,
+        loginStatus: 'failed',
+        reason: 'Account already linked to another device',
+        deviceId,
+        req
+      });
+
       return res.status(403).json({
         success: false,
         message: 'This account is already linked to another device. Please contact admin to reset device access.'
@@ -407,13 +562,15 @@ app.post('/api/student/login', async (req, res) => {
 
     const student = {
       id: dbStudent.roll_no,
-      name: dbStudent.student_name || googleName,
+      name: dbStudent.student_name,
       email: dbStudent.email,
       photo: photo,
-      branch: 'Mechanical Engineering',
-      year: '2nd Year',
+      branch: dbStudent.branch || 'Mechanical Engineering',
+      year: dbStudent.year || '2nd Year',
       hostel: `Hostel ${dbStudent.hostel}`,
-      hostelNumber: dbStudent.hostel
+      hostelNumber: dbStudent.hostel,
+      accessStatus: dbStudent.access_status,
+      accessReason: dbStudent.access_reason || null
     };
 
     const authToken = jwt.sign(
@@ -429,6 +586,16 @@ app.post('/api/student/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    await saveLoginLog({
+      email,
+      rollNo: dbStudent.roll_no,
+      studentName: dbStudent.student_name,
+      loginStatus: 'success',
+      reason: 'Login successful',
+      deviceId,
+      req
+    });
+
     console.log('Student authenticated successfully:', student.name);
 
     res.json({
@@ -439,6 +606,15 @@ app.post('/api/student/login', async (req, res) => {
 
   } catch (error) {
     console.error('Google OAuth verification failed:', error);
+
+    await saveLoginLog({
+      email,
+      loginStatus: 'failed',
+      reason: 'Invalid Google authentication token',
+      deviceId,
+      req
+    });
+
     res.status(401).json({
       success: false,
       message: 'Invalid authentication token. Please try logging in again.'
@@ -516,6 +692,76 @@ app.post('/api/admin/login', async (req, res) => {
   }
 });
 
+app.get('/api/admin/login-logs', async (req, res) => {
+  try {
+    const {
+      status,
+      email,
+      fromDate,
+      toDate
+    } = req.query;
+
+    let query = `
+      SELECT 
+        id,
+        email,
+        roll_no AS "rollNo",
+        student_name AS "studentName",
+        login_status AS "loginStatus",
+        reason,
+        device_id AS "deviceId",
+        ip_address AS "ipAddress",
+        user_agent AS "userAgent",
+        created_at AS "createdAt"
+      FROM login_logs
+      WHERE 1 = 1
+    `;
+
+    const values = [];
+    let index = 1;
+
+    if (status && status !== 'all') {
+      query += ` AND login_status = $${index}`;
+      values.push(status);
+      index++;
+    }
+
+    if (email) {
+      query += ` AND LOWER(email) LIKE LOWER($${index})`;
+      values.push(`%${email}%`);
+      index++;
+    }
+
+    if (fromDate) {
+      query += ` AND created_at >= $${index}`;
+      values.push(fromDate);
+      index++;
+    }
+
+    if (toDate) {
+      query += ` AND created_at <= $${index}`;
+      values.push(toDate);
+      index++;
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT 200`;
+
+    const result = await pool.query(query, values);
+
+    res.json({
+      success: true,
+      logs: result.rows
+    });
+
+  } catch (error) {
+    console.error('Login logs fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 app.post('/api/admin/forgot-password', async (req, res) => {
   try {
     const { username, resetCode, newPassword } = req.body;
@@ -568,40 +814,92 @@ app.post('/api/admin/forgot-password', async (req, res) => {
 });
 
 // Location verification
-app.post('/api/location/verify', (req, res) => {
-  const { latitude, longitude, accuracy } = req.body;
-  
-  const messLat = parseFloat(process.env.MESS_LOCATION_LAT) || 23.4136;
-  const messLng = parseFloat(process.env.MESS_LOCATION_LNG) || 85.4399;
-  const radius = parseInt(process.env.MESS_LOCATION_RADIUS) || 50;
-  
-  // Calculate actual distance
-  function calculateDistance(lat1, lng1, lat2, lng2) {
-    const R = 6371e3; // Earth radius in meters
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lng2-lng1) * Math.PI/180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c;
-  }
-  
-  const distance = calculateDistance(latitude, longitude, messLat, messLng);
-  const isValid = distance <= radius;
-  
-  console.log(`Location verification: distance=${Math.round(distance)}m, valid=${isValid}`);
-  
-  res.json({
-    isValid,
-    distance: Math.round(distance),
+app.post('/api/location/verify', async (req, res) => {
+  const {
+    latitude,
+    longitude,
     accuracy,
-    message: isValid ? 'Location verified - You are at the mess' : `Please move closer to mess hall (${Math.round(distance)}m away)`
-  });
+    email,
+    rollNo,
+    studentName
+  } = req.body;
+
+  try {
+    const messLat = parseFloat(process.env.MESS_LOCATION_LAT) || 23.4136;
+    const messLng = parseFloat(process.env.MESS_LOCATION_LNG) || 85.4399;
+    const radius = parseInt(process.env.MESS_LOCATION_RADIUS) || 50000;
+
+    function calculateDistance(lat1, lng1, lat2, lng2) {
+      const R = 6371e3;
+      const φ1 = lat1 * Math.PI / 180;
+      const φ2 = lat2 * Math.PI / 180;
+      const Δφ = (lat2 - lat1) * Math.PI / 180;
+      const Δλ = (lng2 - lng1) * Math.PI / 180;
+
+      const a =
+        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) *
+        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    const distance = calculateDistance(latitude, longitude, messLat, messLng);
+    const roundedDistance = Math.round(distance);
+    const isValid = distance <= radius;
+
+    const reason = isValid
+      ? 'Location verified successfully'
+      : `Student is ${roundedDistance}m away from allowed mess area`;
+
+    await pool.query(
+      `
+      INSERT INTO location_logs (
+        email,
+        roll_no,
+        student_name,
+        latitude,
+        longitude,
+        accuracy,
+        distance_from_mess,
+        is_valid,
+        reason
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `,
+      [
+        email || null,
+        rollNo || null,
+        studentName || null,
+        latitude,
+        longitude,
+        accuracy,
+        roundedDistance,
+        isValid,
+        reason
+      ]
+    );
+
+    console.log(`Location verification: distance=${roundedDistance}m, valid=${isValid}`);
+
+    res.json({
+      isValid,
+      distance: roundedDistance,
+      accuracy,
+      message: isValid
+        ? 'Location verified - You are at the mess'
+        : `Please move closer to mess hall (${roundedDistance}m away)`
+    });
+
+  } catch (error) {
+    console.error('Location verification error:', error);
+
+    res.status(500).json({
+      isValid: false,
+      message: error.message
+    });
+  }
 });
 
 // Start server
@@ -680,7 +978,7 @@ app.post('/api/auth/verify', (req, res) => {
 // Enhanced QR Code Generation
 app.post('/api/student/generate-qr', async (req, res) => {
   try {
-    const { studentId, mealSlot, qrId, timestamp, validUntil, location } = req.body;
+    const { studentId, studentEmail, mealSlot, qrId, timestamp, validUntil, location } = req.body;
 
     console.log('📱 QR generation request:', {
       student: studentId,
@@ -689,19 +987,30 @@ app.post('/api/student/generate-qr', async (req, res) => {
       location: location ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}` : 'Unknown'
     });
 
+    const normalizedStudentId = String(studentId || '').trim().replaceAll('-', '/');
+    const normalizedEmail = String(studentEmail || '').trim().toLowerCase();
+
+    console.log('Searching student for QR:', {
+      studentId,
+      studentEmail,
+      normalizedStudentId,
+      normalizedEmail
+    });
+
     const studentResult = await pool.query(
       `
       SELECT roll_no, student_name, email, hostel, access_status
       FROM students
-      WHERE roll_no = $1
+      WHERE REPLACE(roll_no, '-', '/') = $1
+        OR LOWER(email) = $2
       `,
-      [studentId]
+      [normalizedStudentId, normalizedEmail]
     );
 
     if (studentResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'Student not found in database'
+        message: `Student not found in database for ${normalizedEmail || normalizedStudentId}`
       });
     }
 
@@ -729,24 +1038,51 @@ app.post('/api/student/generate-qr', async (req, res) => {
       [student.roll_no, ticketDate, mealSlot]
     );
 
-    if (existingTicket.rows.length > 0) {
-      const ticket = existingTicket.rows[0];
+      if (existingTicket.rows.length > 0) {
+        const ticket = existingTicket.rows[0];
+        const nowTime = new Date();
+        const oldValidUntil = new Date(ticket.valid_until);
 
-      if (ticket.status === 'used') {
-        return res.status(400).json({
-          success: false,
-          message: 'This meal pass has already been used.'
+        if (ticket.status === 'used') {
+          return res.status(400).json({
+            success: false,
+            message: 'This meal pass has already been used.'
+          });
+        }
+
+        // If existing ticket is still valid, return same QR
+        if (ticket.status === 'active' && nowTime <= oldValidUntil) {
+          return res.json({
+            success: true,
+            qrId: ticket.qr_id,
+            ticketId: ticket.ticket_id,
+            message: 'Existing active QR returned',
+            validUntil: ticket.valid_until
+          });
+        }
+
+        // If existing ticket is expired, refresh same ticket with new QR ID
+        const refreshedTicket = await pool.query(
+          `
+          UPDATE tickets
+          SET qr_id = $1,
+              status = 'active',
+              generated_at = $2,
+              valid_until = $3
+          WHERE id = $4
+          RETURNING ticket_id, qr_id, valid_until
+          `,
+          [qrId, timestamp, validUntil, ticket.id]
+        );
+
+        return res.json({
+          success: true,
+          qrId: refreshedTicket.rows[0].qr_id,
+          ticketId: refreshedTicket.rows[0].ticket_id,
+          message: 'Expired QR refreshed successfully',
+          validUntil: refreshedTicket.rows[0].valid_until
         });
       }
-
-      return res.json({
-        success: true,
-        qrId: ticket.qr_id,
-        ticketId: ticket.ticket_id,
-        message: 'Existing active QR returned',
-        validUntil: ticket.valid_until
-      });
-    }
 
     await pool.query(
       `
@@ -848,7 +1184,7 @@ app.post('/api/admin/verify-qr', async (req, res) => {
     const ticket = ticketResult.rows[0];
 
     const now = new Date();
-    const validUntil = new Date(ticket.valid_until || validUntilValue);
+    const validUntil = new Date(validUntilValue);
 
     if (now > validUntil) {
       await pool.query(
@@ -1051,6 +1387,616 @@ app.post('/api/admin/create-default-admin', async (req, res) => {
   }
 });
 
+app.get('/api/admin/location-logs', async (req, res) => {
+  try {
+    const { status, email, fromDate, toDate } = req.query;
+
+    let query = `
+      SELECT
+        id,
+        email,
+        roll_no AS "rollNo",
+        student_name AS "studentName",
+        latitude,
+        longitude,
+        accuracy,
+        distance_from_mess AS "distanceFromMess",
+        is_valid AS "isValid",
+        reason,
+        created_at AS "createdAt"
+      FROM location_logs
+      WHERE 1 = 1
+    `;
+
+    const values = [];
+    let index = 1;
+
+    if (status === 'valid') {
+      query += ` AND is_valid = true`;
+    }
+
+    if (status === 'invalid') {
+      query += ` AND is_valid = false`;
+    }
+
+    if (email) {
+      query += ` AND LOWER(email) LIKE LOWER($${index})`;
+      values.push(`%${email}%`);
+      index++;
+    }
+
+    if (fromDate) {
+      query += ` AND created_at >= $${index}`;
+      values.push(fromDate);
+      index++;
+    }
+
+    if (toDate) {
+      query += ` AND created_at <= $${index}`;
+      values.push(toDate);
+      index++;
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT 200`;
+
+    const result = await pool.query(query, values);
+
+    res.json({
+      success: true,
+      logs: result.rows
+    });
+
+  } catch (error) {
+    console.error('Location logs fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.get('/api/admin/dashboard-stats', async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    const totalStudents = await pool.query(`
+      SELECT COUNT(*)::int AS count FROM students
+    `);
+
+    const activeStudents = await pool.query(`
+      SELECT COUNT(*)::int AS count 
+      FROM students 
+      WHERE access_status = 'active'
+    `);
+
+    const revokedStudents = await pool.query(`
+      SELECT COUNT(*)::int AS count 
+      FROM students 
+      WHERE access_status = 'revoked'
+    `);
+
+    const todayLoginAttempts = await pool.query(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM login_logs
+      WHERE DATE(created_at) = $1
+      `,
+      [today]
+    );
+
+    const todaySuccessfulLogins = await pool.query(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM login_logs
+      WHERE DATE(created_at) = $1
+        AND login_status = 'success'
+      `,
+      [today]
+    );
+
+    const todayFailedLogins = await pool.query(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM login_logs
+      WHERE DATE(created_at) = $1
+        AND login_status = 'failed'
+      `,
+      [today]
+    );
+
+    const todayMealScans = await pool.query(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM tickets
+      WHERE ticket_date = $1
+        AND status = 'used'
+      `,
+      [today]
+    );
+
+    const mealWiseToday = await pool.query(
+      `
+      SELECT 
+        meal_slot AS "mealSlot",
+        COUNT(*)::int AS count
+      FROM tickets
+      WHERE ticket_date = $1
+        AND status = 'used'
+      GROUP BY meal_slot
+      ORDER BY meal_slot
+      `,
+      [today]
+    );
+
+    const failedScansToday = await pool.query(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM scan_logs
+      WHERE DATE(scanned_at) = $1
+        AND scan_status != 'success'
+      `,
+      [today]
+    );
+
+    res.json({
+      success: true,
+      stats: {
+        totalStudents: totalStudents.rows[0].count,
+        activeStudents: activeStudents.rows[0].count,
+        revokedStudents: revokedStudents.rows[0].count,
+        todayLoginAttempts: todayLoginAttempts.rows[0].count,
+        todaySuccessfulLogins: todaySuccessfulLogins.rows[0].count,
+        todayFailedLogins: todayFailedLogins.rows[0].count,
+        todayMealScans: todayMealScans.rows[0].count,
+        failedScansToday: failedScansToday.rows[0].count,
+        mealWiseToday: mealWiseToday.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('Dashboard stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.get('/api/admin/meal-reports', async (req, res) => {
+  try {
+    const { mealSlot, status, email, fromDate, toDate } = req.query;
+
+    let query = `
+      SELECT
+        id,
+        ticket_id AS "ticketId",
+        qr_id AS "qrId",
+        roll_no AS "rollNo",
+        student_name AS "studentName",
+        email,
+        hostel,
+        meal_slot AS "mealSlot",
+        ticket_date AS "ticketDate",
+        status,
+        generated_at AS "generatedAt",
+        valid_until AS "validUntil",
+        used_at AS "usedAt",
+        verified_by AS "verifiedBy"
+      FROM tickets
+      WHERE 1 = 1
+    `;
+
+    const values = [];
+    let index = 1;
+
+    if (mealSlot && mealSlot !== 'all') {
+      query += ` AND meal_slot = $${index}`;
+      values.push(mealSlot);
+      index++;
+    }
+
+    if (status && status !== 'all') {
+      query += ` AND status = $${index}`;
+      values.push(status);
+      index++;
+    }
+
+    if (email) {
+      query += ` AND LOWER(email) LIKE LOWER($${index})`;
+      values.push(`%${email}%`);
+      index++;
+    }
+
+    if (fromDate) {
+      query += ` AND ticket_date >= $${index}`;
+      values.push(fromDate);
+      index++;
+    }
+
+    if (toDate) {
+      query += ` AND ticket_date <= $${index}`;
+      values.push(toDate);
+      index++;
+    }
+
+    query += ` ORDER BY ticket_date DESC, generated_at DESC LIMIT 300`;
+
+    const result = await pool.query(query, values);
+
+    res.json({
+      success: true,
+      reports: result.rows
+    });
+
+  } catch (error) {
+    console.error('Meal reports error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.post('/api/admin/students/:id/manage-access', async (req, res) => {
+  try {
+    const studentId = req.params.id;
+    const {
+      action,
+      duration,
+      customUntil,
+      reason
+    } = req.body;
+
+    const studentResult = await pool.query(
+      `
+      SELECT id, roll_no, email, access_status
+      FROM students
+      WHERE id = $1
+      `,
+      [studentId]
+    );
+
+    if (studentResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    const student = studentResult.rows[0];
+    const oldStatus = student.access_status;
+
+    let newStatus = action === 'allow' ? 'active' : 'revoked';
+    let accessUntil = null;
+
+    if (duration && duration !== 'permanent') {
+      if (duration === 'custom') {
+        accessUntil = customUntil || null;
+      } else {
+        const days = parseInt(duration);
+        const untilDate = new Date();
+        untilDate.setDate(untilDate.getDate() + days);
+        accessUntil = untilDate.toISOString();
+      }
+    }
+
+    await pool.query(
+      `
+      UPDATE students
+      SET access_status = $1,
+          access_until = $2,
+          access_reason = $3,
+          access_updated_by = $4,
+          access_updated_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5
+      `,
+      [
+        newStatus,
+        accessUntil,
+        reason || null,
+        'admin',
+        studentId
+      ]
+    );
+
+    await pool.query(
+      `
+      INSERT INTO access_logs (
+        student_id,
+        roll_no,
+        email,
+        old_status,
+        new_status,
+        access_until,
+        reason,
+        changed_by
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `,
+      [
+        student.id,
+        student.roll_no,
+        student.email,
+        oldStatus,
+        newStatus,
+        accessUntil,
+        reason || null,
+        'admin'
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: `Student access changed to ${newStatus}`,
+      accessUntil
+    });
+
+  } catch (error) {
+    console.error('Manage access error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.get('/api/admin/access-logs', async (req, res) => {
+  try {
+    const { email, status, fromDate, toDate } = req.query;
+
+    let query = `
+      SELECT
+        al.id,
+        al.student_id AS "studentId",
+        al.roll_no AS "rollNo",
+        s.student_name AS "studentName",
+        al.email,
+        al.old_status AS "oldStatus",
+        al.new_status AS "newStatus",
+        al.access_from AS "accessFrom",
+        al.access_until AS "accessUntil",
+        al.reason,
+        al.changed_by AS "changedBy",
+        al.created_at AS "createdAt"
+      FROM access_logs al
+      LEFT JOIN students s ON s.id = al.student_id
+      WHERE 1 = 1
+    `;
+
+    const values = [];
+    let index = 1;
+
+    if (email) {
+      query += ` AND LOWER(al.email) LIKE LOWER($${index})`;
+      values.push(`%${email}%`);
+      index++;
+    }
+
+    if (status && status !== 'all') {
+      query += ` AND al.new_status = $${index}`;
+      values.push(status);
+      index++;
+    }
+
+    if (fromDate) {
+      query += ` AND al.created_at >= $${index}`;
+      values.push(fromDate);
+      index++;
+    }
+
+    if (toDate) {
+      query += ` AND al.created_at <= $${index}`;
+      values.push(toDate);
+      index++;
+    }
+
+    query += ` ORDER BY al.created_at DESC LIMIT 200`;
+
+    const result = await pool.query(query, values);
+
+    res.json({
+      success: true,
+      logs: result.rows
+    });
+
+  } catch (error) {
+    console.error('Access logs fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.post('/api/admin/students/add', async (req, res) => {
+  try {
+    const {
+      rollNo,
+      studentName,
+      email,
+      hostel
+    } = req.body;
+
+    if (!rollNo || !studentName || !email || !hostel) {
+      return res.status(400).json({
+        success: false,
+        message: 'Roll no, student name, email and hostel are required'
+      });
+    }
+
+    if (!email.toLowerCase().endsWith('@bitmesra.ac.in')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only BIT Mesra email is allowed'
+      });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO students (
+        roll_no,
+        student_name,
+        email,
+        hostel,
+        access_status
+      )
+      VALUES ($1,$2,$3,$4,'active')
+      RETURNING id, roll_no, student_name, email, hostel, access_status
+      `,
+      [
+        rollNo.trim(),
+        studentName.trim(),
+        email.trim().toLowerCase(),
+        parseInt(hostel)
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: 'Student added successfully',
+      student: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Add student error:', error);
+
+    if (error.code === '23505') {
+      return res.status(400).json({
+        success: false,
+        message: 'Student with this roll no or email already exists'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+function sendCSV(res, filename, rows) {
+  if (!rows || rows.length === 0) {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send('No data found\n');
+  }
+
+  const headers = Object.keys(rows[0]);
+
+  const csvRows = [
+    headers.join(','),
+    ...rows.map(row =>
+      headers.map(header => {
+        const value = row[header] === null || row[header] === undefined ? '' : String(row[header]);
+        return `"${value.replace(/"/g, '""')}"`;
+      }).join(',')
+    )
+  ];
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(csvRows.join('\n'));
+}
+
+app.get('/api/admin/export/students.csv', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        roll_no,
+        student_name,
+        email,
+        hostel,
+        access_status,
+        device_locked,
+        last_login_at,
+        created_at
+      FROM students
+      ORDER BY hostel, roll_no
+    `);
+
+    sendCSV(res, 'students.csv', result.rows);
+
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
+app.get('/api/admin/export/login-logs.csv', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        created_at,
+        student_name,
+        roll_no,
+        email,
+        login_status,
+        reason,
+        device_id,
+        ip_address,
+        user_agent
+      FROM login_logs
+      ORDER BY created_at DESC
+    `);
+
+    sendCSV(res, 'login_logs.csv', result.rows);
+
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
+app.get('/api/admin/export/location-logs.csv', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        created_at,
+        student_name,
+        roll_no,
+        email,
+        latitude,
+        longitude,
+        accuracy,
+        distance_from_mess,
+        is_valid,
+        reason
+      FROM location_logs
+      ORDER BY created_at DESC
+    `);
+
+    sendCSV(res, 'location_logs.csv', result.rows);
+
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
+app.get('/api/admin/export/meal-reports.csv', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        ticket_date,
+        meal_slot,
+        student_name,
+        roll_no,
+        email,
+        hostel,
+        status,
+        generated_at,
+        valid_until,
+        used_at,
+        verified_by
+      FROM tickets
+      ORDER BY ticket_date DESC, generated_at DESC
+    `);
+
+    sendCSV(res, 'meal_reports.csv', result.rows);
+
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Smart Pass Backend running on http://localhost:${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -1068,192 +2014,3 @@ app.listen(PORT, () => {
   console.log(`   POST /api/auth/verify           - Verify JWT token`);
 
 });
-
-
-
-
-// const express = require('express');
-// const cors = require('cors');
-// const { Pool } = require('pg');
-// const { OAuth2Client } = require('google-auth-library');
-// require('dotenv').config();
-
-// const app = express();
-// const port = process.env.PORT || 3001;
-
-// // Middleware
-// app.use(cors());
-// app.use(express.json());
-
-// // Database connection
-// const pool = new Pool({
-//     connectionString: process.env.DATABASE_URL
-// });
-
-// // Google OAuth client
-// const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
-// // Auth middleware
-// async function authenticate(req, res, next) {
-//     try {
-//         const token = req.headers.authorization?.split(' ')[1];
-        
-//         if (!token) {
-//             return res.status(401).json({ success: false, message: 'No token provided' });
-//         }
-
-//         const ticket = await client.verifyIdToken({
-//             idToken: token,
-//             audience: process.env.GOOGLE_CLIENT_ID
-//         });
-        
-//         const payload = ticket.getPayload();
-        
-//         // Find user in database
-//         const userResult = await pool.query(
-//             'SELECT * FROM users WHERE email = $1',
-//             [payload.email]
-//         );
-        
-//         if (userResult.rows.length === 0) {
-//             return res.status(404).json({ success: false, message: 'User not found in database' });
-//         }
-        
-//         req.user = userResult.rows[0];
-//         next();
-//     } catch (error) {
-//         console.error('Auth error:', error);
-//         res.status(401).json({ success: false, message: 'Invalid token' });
-//     }
-// }
-
-// // Routes
-
-// // Student login
-// app.post('/api/student/login', async (req, res) => {
-//     try {
-//         const { token } = req.body;
-        
-//         const ticket = await client.verifyIdToken({
-//             idToken: token,
-//             audience: process.env.GOOGLE_CLIENT_ID
-//         });
-        
-//         const payload = ticket.getPayload();
-        
-//         // Find user in database
-//         const userResult = await pool.query(
-//             'SELECT * FROM users WHERE email = $1',
-//             [payload.email]
-//         );
-        
-//         if (userResult.rows.length === 0) {
-//             return res.status(404).json({ 
-//                 success: false, 
-//                 message: 'Email not registered in BIT Mesra system' 
-//             });
-//         }
-        
-//         const user = userResult.rows[0];
-        
-//         res.json({
-//             success: true,
-//             token: token, // In production, generate your own JWT
-//             user: {
-//                 id: user.student_id,
-//                 name: user.name,
-//                 email: user.email,
-//                 photo: user.photo_url,
-//                 branch: user.branch,
-//                 year: user.year,
-//                 hostel: user.hostel
-//             }
-//         });
-//     } catch (error) {
-//         console.error('Login error:', error);
-//         res.status(500).json({ success: false, message: 'Login failed' });
-//     }
-// });
-
-// // Generate QR code
-// app.post('/api/student/generate-qr', authenticate, async (req, res) => {
-//     try {
-//         const { studentId, mealSlot, qrId, timestamp, validUntil, location } = req.body;
-        
-//         await pool.query(
-//             `INSERT INTO qr_activities 
-//              (user_id, qr_id, meal_slot, generated_at, latitude, longitude, expires_at) 
-//              VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-//             [
-//                 req.user.id,
-//                 qrId,
-//                 mealSlot,
-//                 timestamp,
-//                 location?.latitude || null,
-//                 location?.longitude || null,
-//                 validUntil
-//             ]
-//         );
-        
-//         res.json({ success: true, message: 'QR generated and logged' });
-//     } catch (error) {
-//         console.error('QR generation error:', error);
-//         res.status(500).json({ success: false, message: 'Failed to generate QR' });
-//     }
-// });
-
-// // Location verification
-// app.post('/api/location/verify', authenticate, async (req, res) => {
-//     try {
-//         const { latitude, longitude } = req.body;
-        
-//         // BIT Mesra coordinates
-//         const bitLat = 23.4136;
-//         const bitLng = 85.4399;
-//         const allowedRadius = 50000; // 50km for testing
-        
-//         // Calculate distance
-//         const distance = calculateDistance(latitude, longitude, bitLat, bitLng);
-        
-//         res.json({
-//             success: true,
-//             isValid: distance <= allowedRadius,
-//             distance: Math.round(distance)
-//         });
-//     } catch (error) {
-//         console.error('Location verification error:', error);
-//         res.status(500).json({ success: false, message: 'Location verification failed' });
-//     }
-// });
-
-// // Auth verification
-// app.post('/api/auth/verify', authenticate, (req, res) => {
-//     res.json({
-//         success: true,
-//         user: {
-//             id: req.user.student_id,
-//             name: req.user.name,
-//             email: req.user.email,
-//             photo: req.user.photo_url,
-//             branch: req.user.branch,
-//             year: req.user.year,
-//             hostel: req.user.hostel
-//         }
-//     });
-// });
-
-// // Helper function to calculate distance
-// function calculateDistance(lat1, lon1, lat2, lon2) {
-//     const R = 6371000; // Earth's radius in meters
-//     const dLat = (lat2 - lat1) * Math.PI / 180;
-//     const dLon = (lon2 - lon1) * Math.PI / 180;
-//     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-//               Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-//               Math.sin(dLon/2) * Math.sin(dLon/2);
-//     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-//     return R * c;
-// }
-
-// app.listen(port, () => {
-//     console.log(`🚀 Server running on http://localhost:${port}`);
-// });

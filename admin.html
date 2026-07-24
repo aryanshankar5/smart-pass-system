@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Smart Pass Admin Portal</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="admin.js" defer></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="admin.js" defer></script>
 </head>
 <body>
   <div id="admin-login-page" class="screen active">
@@ -92,39 +93,299 @@
     </nav>
 
     <div class="admin-content">
-      <div class="admin-stats">
-        <div class="stat-card">
-          <div class="stat-number" id="total-students">0</div>
-          <div class="stat-label">Students</div>
-        </div>
+<div class="admin-stats">
+  <div class="stat-card">
+    <div class="stat-number" id="total-students">0</div>
+    <div class="stat-label">Total Students</div>
+  </div>
 
-        <div class="stat-card">
-          <div class="stat-number" id="active-students">0</div>
-          <div class="stat-label">Active Access</div>
-        </div>
+  <div class="stat-card">
+    <div class="stat-number" id="active-students">0</div>
+    <div class="stat-label">Active Students</div>
+  </div>
 
-        <div class="stat-card">
-          <div class="stat-number" id="revoked-students">0</div>
-          <div class="stat-label">Revoked Access</div>
-        </div>
-      </div>
+  <div class="stat-card">
+    <div class="stat-number" id="revoked-students">0</div>
+    <div class="stat-label">Revoked Students</div>
+  </div>
 
-      <div class="card">
+  <div class="stat-card">
+    <div class="stat-number" id="today-login-attempts">0</div>
+    <div class="stat-label">Today's Login Attempts</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-number" id="today-success-logins">0</div>
+    <div class="stat-label">Successful Logins</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-number" id="today-failed-logins">0</div>
+    <div class="stat-label">Failed Logins</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-number" id="today-meal-scans">0</div>
+    <div class="stat-label">Meals Served Today</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-number" id="today-failed-scans">0</div>
+    <div class="stat-label">Failed QR Scans</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Today's Meal Summary</h3>
+  <div id="meal-summary-container"></div>
+</div>
+
+        <div class="card">
         <h3>QR Verification</h3>
-        <p>Paste scanned QR data below and verify the student meal pass.</p>
+        <p>Scan QR using camera or paste QR data below and verify the student meal pass.</p>
+
+        <div class="scanner-box">
+            <div id="reader" style="width: 320px; margin: 15px auto;"></div>
+
+            <button class="btn btn--primary" onclick="startCameraScanner()">
+            Start Camera Scanner
+            </button>
+
+            <button class="btn btn--outline" onclick="stopCameraScanner()">
+            Stop Scanner
+            </button>
+        </div>
 
         <textarea id="qr-input" class="form-control" rows="6" placeholder="Paste QR data here"></textarea>
 
         <button class="btn btn--primary" onclick="verifyQRFromInput()">
-          Verify QR
+            Verify QR
         </button>
 
         <button class="btn btn--secondary" onclick="markQRUsed()">
-          Mark as Used
+            Mark as Used
         </button>
 
         <div id="qr-result" class="verification-result"></div>
-      </div>
+        </div>
+
+        <div class="card">
+  <h3>Student Login Logs</h3>
+  <p>Track student login attempts, status, time, device and reason.</p>
+
+  <div class="admin-filters">
+    <select id="login-log-status" class="form-control" onchange="loadLoginLogs()">
+      <option value="all">All Status</option>
+      <option value="success">Success</option>
+      <option value="failed">Failed</option>
+    </select>
+
+    <input 
+      type="text" 
+      id="login-log-email" 
+      class="form-control" 
+      placeholder="Search email"
+      oninput="loadLoginLogs()"
+    />
+
+    <input 
+      type="date" 
+      id="login-log-from" 
+      class="form-control"
+      onchange="loadLoginLogs()"
+    />
+
+    <input 
+      type="date" 
+      id="login-log-to" 
+      class="form-control"
+      onchange="loadLoginLogs()"
+    />
+
+    <button class="btn btn--secondary" onclick="loadLoginLogs()">
+      Refresh Logs
+    </button>
+  </div>
+
+  <div id="login-logs-container"></div>
+</div>
+
+<div class="card">
+  <h3>Location Verification Logs</h3>
+  <p>Track student GPS verification attempts, distance from mess and validity.</p>
+
+  <div class="admin-filters">
+    <select id="location-log-status" class="form-control" onchange="loadLocationLogs()">
+      <option value="all">All Status</option>
+      <option value="valid">Valid Location</option>
+      <option value="invalid">Invalid Location</option>
+    </select>
+
+    <input
+      type="text"
+      id="location-log-email"
+      class="form-control"
+      placeholder="Search email"
+      oninput="loadLocationLogs()"
+    />
+
+    <input
+      type="date"
+      id="location-log-from"
+      class="form-control"
+      onchange="loadLocationLogs()"
+    />
+
+    <input
+      type="date"
+      id="location-log-to"
+      class="form-control"
+      onchange="loadLocationLogs()"
+    />
+
+    <button class="btn btn--secondary" onclick="loadLocationLogs()">
+      Refresh Location Logs
+    </button>
+  </div>
+
+  <div id="location-logs-container"></div>
+</div>
+
+<div class="card">
+  <h3>Meal Scan Reports</h3>
+  <p>View meal-wise QR generation and usage history.</p>
+
+  <div class="admin-filters">
+    <select id="meal-report-slot" class="form-control" onchange="loadMealReports()">
+      <option value="all">All Meals</option>
+      <option value="Breakfast">Breakfast</option>
+      <option value="Lunch">Lunch</option>
+      <option value="Snacks">Snacks</option>
+      <option value="Dinner">Dinner</option>
+    </select>
+
+    <select id="meal-report-status" class="form-control" onchange="loadMealReports()">
+      <option value="all">All Status</option>
+      <option value="active">Active</option>
+      <option value="used">Used</option>
+      <option value="expired">Expired</option>
+    </select>
+
+    <input
+      type="text"
+      id="meal-report-email"
+      class="form-control"
+      placeholder="Search email"
+      oninput="loadMealReports()"
+    />
+
+    <input
+      type="date"
+      id="meal-report-from"
+      class="form-control"
+      onchange="loadMealReports()"
+    />
+
+    <input
+      type="date"
+      id="meal-report-to"
+      class="form-control"
+      onchange="loadMealReports()"
+    />
+
+    <button class="btn btn--secondary" onclick="loadMealReports()">
+      Refresh Reports
+    </button>
+  </div>
+
+  <div id="meal-reports-container"></div>
+</div>
+
+<div class="card">
+  <h3>Access History Logs</h3>
+  <p>Track who revoked or allowed student access, when and why.</p>
+
+  <div class="admin-filters">
+    <select id="access-log-status" class="form-control" onchange="loadAccessLogs()">
+      <option value="all">All Actions</option>
+      <option value="active">Allowed</option>
+      <option value="revoked">Revoked</option>
+    </select>
+
+    <input
+      type="text"
+      id="access-log-email"
+      class="form-control"
+      placeholder="Search email"
+      oninput="loadAccessLogs()"
+    />
+
+    <input
+      type="date"
+      id="access-log-from"
+      class="form-control"
+      onchange="loadAccessLogs()"
+    />
+
+    <input
+      type="date"
+      id="access-log-to"
+      class="form-control"
+      onchange="loadAccessLogs()"
+    />
+
+    <button class="btn btn--secondary" onclick="loadAccessLogs()">
+      Refresh Access Logs
+    </button>
+  </div>
+
+  <div id="access-logs-container"></div>
+</div>
+
+<div class="card">
+  <h3>Export Reports</h3>
+  <p>Download reports for official college/mess records.</p>
+
+  <div class="export-buttons">
+    <button class="btn btn--primary" onclick="downloadReport('/api/admin/export/students.csv')">
+      Export Students CSV
+    </button>
+
+    <button class="btn btn--secondary" onclick="downloadReport('/api/admin/export/login-logs.csv')">
+      Export Login Logs CSV
+    </button>
+
+    <button class="btn btn--secondary" onclick="downloadReport('/api/admin/export/location-logs.csv')">
+      Export Location Logs CSV
+    </button>
+
+    <button class="btn btn--secondary" onclick="downloadReport('/api/admin/export/meal-reports.csv')">
+      Export Meal Reports CSV
+    </button>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Add Student Manually</h3>
+  <p>Add a new student to Smart Pass database.</p>
+
+  <div class="admin-filters">
+    <input id="new-roll-no" class="form-control" placeholder="Roll No e.g. BTECH/10090/24" />
+
+    <input id="new-student-name" class="form-control" placeholder="Student Name" />
+
+    <input id="new-student-email" class="form-control" placeholder="College Email" />
+
+    <input id="new-student-hostel" type="number" class="form-control" placeholder="Hostel No" />
+
+    <button class="btn btn--primary" onclick="addStudentManually()">
+      Add Student
+    </button>
+  </div>
+
+  <p id="add-student-message" class="form-message"></p>
+</div>
+
 
       <div class="card">
         <h3>Student Access Control</h3>
@@ -141,5 +402,55 @@
       </div>
     </div>
   </div>
+
+  <div id="access-modal" class="modal hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Manage Student Access</h3>
+      <button class="modal-close" onclick="closeAccessModal()">×</button>
+    </div>
+
+    <div class="modal-body">
+      <p id="access-student-name"></p>
+
+      <input type="hidden" id="access-student-id" />
+
+      <div class="form-group">
+        <label>Action</label>
+        <select id="access-action" class="form-control">
+          <option value="revoke">Revoke Access</option>
+          <option value="allow">Allow Access</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Duration</label>
+        <select id="access-duration" class="form-control">
+          <option value="permanent">Permanent</option>
+          <option value="1">1 Day</option>
+          <option value="3">3 Days</option>
+          <option value="7">7 Days</option>
+          <option value="15">15 Days</option>
+          <option value="30">30 Days</option>
+          <option value="custom">Custom Date</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Custom Until Date</label>
+        <input type="datetime-local" id="access-custom-until" class="form-control" />
+      </div>
+
+      <div class="form-group">
+        <label>Reason</label>
+        <textarea id="access-reason" class="form-control" rows="3" placeholder="Example: Duplicate QR misuse, hostel fee pending, manual permission, etc."></textarea>
+      </div>
+
+      <button class="btn btn--primary btn--full-width" onclick="submitAccessChange()">
+        Save Access Change
+      </button>
+    </div>
+  </div>
+</div>
 </body>
 </html> 

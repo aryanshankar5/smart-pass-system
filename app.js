@@ -50,10 +50,10 @@ const appData = {
         }
     ],
     mealSlots: [
-        {
+                {
             id: "breakfast",
             name: "Breakfast",
-            startTime: "00:30",
+            startTime: "07:30",
             endTime: "09:00",
             displayTime: "7:30 AM - 9:00 AM"
         },
@@ -61,7 +61,7 @@ const appData = {
             id: "lunch", 
             name: "Lunch",
             startTime: "12:30",
-            endTime: "16:00", 
+            endTime: "14:00", 
             displayTime: "12:30 PM - 2:00 PM"
         },
         {
@@ -93,6 +93,8 @@ const appData = {
 };
 
 // Application State
+let isBackendLocationValid = false;
+let verifiedLocationName = null;
 let currentUser = null;
 let userLocation = null;
 let qrTimer = null;
@@ -309,34 +311,19 @@ async function requestLocationPermission() {
         });
         
         // Verify location with backend
-        // Verify location with backend
-const result = await apiCall('/api/location/verify', 'POST', currentLocation);
+        const savedUser = JSON.parse(localStorage.getItem('smartpass_user') || 'null');
+        const activeUser = currentUser || savedUser;
 
-// Get current location name using reverse geocoding
-let locationName = 'Unknown Location';
-try {
-    const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}&localityLanguage=en`);
-    const locationData = await response.json();
-    
-    if (locationData.city && locationData.principalSubdivision) {
-        locationName = `${locationData.city}, ${locationData.principalSubdivision}`;
-    } else if (locationData.locality) {
-        locationName = locationData.locality;
-    } else if (locationData.principalSubdivision) {
-        locationName = locationData.principalSubdivision;
-    }
-    
-    console.log('📍 Current location name:', locationName);
-    } catch (error) {
-        console.log('Could not get location name:', error);
-        locationName = 'Current Location';
-    }
+        console.log('LOCATION USER DEBUG:', activeUser);
 
-    // ADD THESE DEBUG LINES HERE:
-    console.log('🔍 DEBUG INFO:');
-    console.log('- Your coordinates:', currentLocation.latitude.toFixed(6), currentLocation.longitude.toFixed(6));
-    console.log('- BIT Mesra coordinates:', appData.messLocation.latitude, appData.messLocation.longitude);
-    console.log('- Frontend radius:', appData.messLocation.radius, 'meters');
+        const result = await apiCall('/api/location/verify', 'POST', {
+            ...currentLocation,
+            email: activeUser?.email || null,
+            rollNo: activeUser?.id || null,
+            studentName: activeUser?.name || null
+        });
+
+        let locationName = result.locationName || 'Allowed Area';
 
     // Calculate distance manually
     const manualDistance = calculateDistance(
@@ -354,10 +341,16 @@ try {
 
     if (result.isValid) {
         userLocation = currentLocation;
+        isBackendLocationValid = true;
+        verifiedLocationName = locationName;
+
         updateLocationStatus('verified', null, locationName);
         console.log('✅ Location verified - At:', locationName);
     } else {
-        userLocation = currentLocation;
+        userLocation = null;
+        isBackendLocationValid = false;
+        verifiedLocationName = null;
+
         updateLocationStatus('invalid', result.distance, locationName);
         console.log('❌ Location invalid - At:', locationName, 'Distance:', result.distance, 'meters');
     }
@@ -434,17 +427,16 @@ function updateLocationStatus(status, distance = null, errorMessage = null) {
             break;
 
             
-        case 'invalid':
-            const distanceText = distance ? ` (${distance}m away)` : '';
-            const currentLocationName = errorMessage || 'Wrong location';
-            locationText.textContent = `❌ You are at ${currentLocationName}${distanceText}`;
-            locationText.className = "location-subtitle location-not-verified";
-            if (button) {
-                button.textContent = "🔄 Check Location Again";
-                button.disabled = false;
-                button.className = "btn btn--primary location-check-btn";
-            }
-            break;
+            case 'invalid':
+                const distanceText = distance ? ` (${distance}m away)` : '';
+                locationText.textContent = `❌ Not in allowed hostel/mess area${distanceText}`;
+                locationText.className = "location-subtitle location-not-verified";
+                if (button) {
+                    button.textContent = "🔄 Check Location Again";
+                    button.disabled = false;
+                    button.className = "btn btn--primary location-check-btn";
+                }
+                break;
 
             
         case 'error':
@@ -584,22 +576,7 @@ function renderMealSlots() {
 
 
 function checkLocationValidity() {
-    if (!userLocation) {
-        console.log('Location check: No location data');
-        return false;
-    }
-    
-    const distance = calculateDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        appData.messLocation.latitude,
-        appData.messLocation.longitude
-    );
-    
-    const isValid = distance <= appData.messLocation.radius;
-    console.log(`Location check: Distance=${Math.round(distance)}m, Valid=${isValid}`);
-    
-    return isValid;
+    return isBackendLocationValid === true;
 }
 
 // Get the next upcoming meal slot
@@ -650,18 +627,6 @@ function isCurrentMealActive(slot) {
     return isActive;
 }
 
-function checkLocationValidity() {
-    if (!userLocation) return false;
-    
-    const distance = calculateDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        appData.messLocation.latitude,
-        appData.messLocation.longitude
-    );
-    
-    return distance <= appData.messLocation.radius;
-}
 
 // QR Code Generation
 // Enhanced QR Code Generation
@@ -685,39 +650,66 @@ async function generateQR(slot) {
 
     
 
-    // Calculate slot close time
-    const slotEndParts = slot.endTime.split(':');
-    const slotCloseTime = new Date();
-    slotCloseTime.setHours(parseInt(slotEndParts[0]), parseInt(slotEndParts[1]), 0, 0);
+        const [endHour, endMinute] = slot.endTime.split(':').map(Number);
 
-    // Calculate expiry time = min(now + 40min, slot close time)
-    const fortyMinLater = new Date(now.getTime() + 40 * 60 * 1000);
-    qrExpiryTime = new Date(Math.min(fortyMinLater.getTime(), slotCloseTime.getTime()));
+        qrExpiryTime = new Date();
+        qrExpiryTime.setHours(endHour, endMinute, 0, 0);
 
-    // Build scannableData with qrExpiryTime
+        if (qrExpiryTime <= now) {
+            alert('❌ This meal slot has already ended.');
+            return;
+        }
+
+
     const timestamp = now.toISOString();
     const validUntil = qrExpiryTime.toISOString();
     const uniqueId = generateUniqueId();
 
-    const scannableData = {
-        type: "BIT_MESRA_MEAL_PASS",
-        student: { id: currentUser.id, name: currentUser.name, email: currentUser.email },
-        meal: { slot: slot.name, time: slot.displayTime, date: now.toDateString() },
-        security: { qrId: uniqueId, timestamp, validUntil, location: "BIT Mesra Main Mess" },
-        verification: { institution: "BIT_MESRA", version: "1.0" }
-    };
-    const qrString = JSON.stringify(scannableData);
-    currentQRData = scannableData;
-
-    // Register with backend
-    await apiCall('/api/student/generate-qr', 'POST', {
+    const saveQRResult = await apiCall('/api/student/generate-qr', 'POST', {
         studentId: currentUser.id,
+        studentEmail: currentUser.email,
         mealSlot: slot.name,
         qrId: uniqueId,
         timestamp,
         validUntil,
         location: userLocation
     });
+
+    if (!saveQRResult.success) {
+        alert('❌ QR could not be saved: ' + saveQRResult.message);
+        return;
+    }
+
+    // Use the QR ID returned by backend/database
+    const finalQrId = saveQRResult.qrId || uniqueId;
+    const finalValidUntil = validUntil;
+
+    const scannableData = {
+        type: "BIT_MESRA_MEAL_PASS",
+        student: {
+            id: currentUser.id,
+            name: currentUser.name,
+            email: currentUser.email
+        },
+        meal: {
+            slot: slot.name,
+            time: slot.displayTime,
+            date: now.toDateString()
+        },
+        security: {
+            qrId: finalQrId,
+            timestamp,
+            validUntil: finalValidUntil,
+            location: "BIT Mesra Main Mess"
+        },
+        verification: {
+            institution: "BIT_MESRA",
+            version: "1.0"
+        }
+    };
+
+    const qrString = JSON.stringify(scannableData);
+    currentQRData = scannableData;
 
     // Render QR
     const qrContainer = document.getElementById('qr-code');
@@ -860,34 +852,10 @@ function createBITQRPlaceholder(container, qrData) {
 
 function startQRTimer(timeLeftSeconds) {
     let timeLeft = typeof timeLeftSeconds === 'number' ? timeLeftSeconds : 0;
+    const initialTime = timeLeft;
+
     const timerElement = document.getElementById('timer');
     const timerFill = document.getElementById('timer-fill');
-
-    if (timeLeft <= 0) {
-        clearInterval(qrTimer);
-        qrTimer = null;
-
-        if (timerElement) timerElement.textContent = "EXPIRED";
-        if (timerFill) timerFill.style.width = "0%";
-
-        currentQRData = null;
-        qrExpiryTime = null;
-
-        console.log("QR Code expired");
-
-        // Show dashboard
-        showScreen("student-dashboard");
-
-        // Refresh meal slots to update active slot
-        renderMealSlots();
-
-        // Optionally auto-generate QR for next slot if desired:
-        let nextSlot = getNextMealSlot();
-        if (nextSlot) {
-            generateQR(nextSlot);
-        }
-    }
-
 
     if (qrTimer) {
         clearInterval(qrTimer);
@@ -900,32 +868,32 @@ function startQRTimer(timeLeftSeconds) {
         const seconds = timeLeft % 60;
 
         if (timerElement) {
-            timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            timerElement.textContent =
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
 
-        if (timerFill) {
-            const percentage = (timeLeft / (40 * 60)) * 100; // max bar for 40 mins
-            timerFill.style.width = percentage + '%';
+        if (timerFill && initialTime > 0) {
+            const percentage = (timeLeft / initialTime) * 100;
+            timerFill.style.width = Math.max(0, percentage) + '%';
         }
 
         if (timeLeft <= 0) {
             clearInterval(qrTimer);
+            qrTimer = null;
+
             if (timerElement) timerElement.textContent = "EXPIRED";
             if (timerFill) timerFill.style.width = '0%';
 
             currentQRData = null;
             qrExpiryTime = null;
-            console.log('QR Code expired');
 
-            // After expiry, revert to student dashboard and refresh meal slots
+            console.log('QR Code expired');
             showScreen('student-dashboard');
             renderMealSlots();
         }
 
         timeLeft--;
     }, 1000);
-
-    console.log('QR Timer started');
 }
 
 
@@ -1159,8 +1127,66 @@ function closeProfile() {
 }
 
 function showSettings() {
-    alert('⚙️ Settings functionality coming soon!\n\nFeatures planned:\n• Notification preferences\n• Language settings\n• Theme customization');
-    toggleMenu(); // Close the nav menu
+    const existing = document.getElementById('student-settings-modal');
+    if (existing) {
+        existing.classList.remove('hidden');
+        return;
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'student-settings-modal';
+    modal.className = 'modal';
+
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Settings</h3>
+                <button class="modal-close" onclick="closeSettingsModal()">×</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="setting-row">
+                    <div>
+                        <strong>Device Lock</strong>
+                        <p>This account is linked to this browser/device for security.</p>
+                    </div>
+                    <span class="status-active">Enabled</span>
+                </div>
+
+                <div class="setting-row">
+                    <div>
+                        <strong>Location Verification</strong>
+                        <p>Required before generating meal QR.</p>
+                    </div>
+                    <span class="status-active">Required</span>
+                </div>
+
+                <div class="setting-row">
+                    <div>
+                        <strong>College Email</strong>
+                        <p>${currentUser?.email || '-'}</p>
+                    </div>
+                </div>
+
+                <button class="btn btn--secondary btn--full-width" onclick="requestLocationPermission()">
+                    Re-check Location
+                </button>
+
+                <button class="btn btn--outline btn--full-width" onclick="logout()">
+                    Logout
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById('student-settings-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
 }
 
 // Event Listeners Setup
@@ -1208,43 +1234,7 @@ function setupEventListeners() {
 // Setup event listeners
 setupEventListeners();
 
-// NEW: Attempt silent re-login from stored token
-const savedToken = localStorage.getItem('smartpass_token');
-if (savedToken) {
-    console.log('🔄 Found saved session, attempting auto-login...');
-    
-    apiCall('/api/auth/verify', 'POST', { token: savedToken })
-        .then(res => {
-            if (res.success) {
-                currentUser = res.user;
-                console.log('🔄 Restored session for', currentUser.name);
-                populateStudentData();
-                showScreen('student-dashboard');
-                setTimeout(() => checkLocation(), 300);
-            } else {
-                // Token expired or invalid - clear storage
-                console.log('❌ Saved token invalid, clearing storage');
-                localStorage.removeItem('smartpass_token');
-                localStorage.removeItem('smartpass_user');
-                showScreen('student-login');
-            }
-        })
-        .catch(() => {
-            console.log('❌ Auto-login failed, clearing storage');
-            localStorage.removeItem('smartpass_token');
-            localStorage.removeItem('smartpass_user');
-            showScreen('student-login');
-        });
-} else {
-    // No saved token, show login screen
-    showScreen('student-login');
-}
 
-// Initialize geolocation
-checkGeolocation();
-
-
-// Initialize Application
 // Initialize Application
 function initializeApp() {
     console.log('🎓 Initializing BIT Mesra Smart Pass App...');
@@ -1321,3 +1311,5 @@ if (document.readyState === 'loading') {
 } else {
     initializeApp();
 }
+
+window.closeSettingsModal = closeSettingsModal;
