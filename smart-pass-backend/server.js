@@ -11,7 +11,16 @@ const XLSX = require('xlsx');
 const app = express();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5500',
+    'http://127.0.0.1:5500',
+    'https://bitmesspass.netlify.app'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
+
 app.use(express.json());
 
 const pool = new Pool({
@@ -906,71 +915,71 @@ app.post('/api/location/verify', async (req, res) => {
 const PORT = process.env.PORT || 3001;
 
 // Verify JWT and return student profile
-app.post('/api/auth/verify', (req, res) => {
+app.post('/api/auth/verify', async (req, res) => {
   try {
     const { token } = req.body;
-    if (!token) return res.json({ success: false });
 
-    // Decode & verify
+    if (!token) {
+      return res.json({ success: false });
+    }
+
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET || 'default-secret'
     );
 
-    // In production you would hit MongoDB; here we rebuild the student object
-    const email = decoded.email;
-    if (!email || !email.endsWith('@bitmesra.ac.in'))
-      return res.json({ success: false });
+    const email = String(decoded.email || '').toLowerCase();
 
-    const roll = email.split('@')[0].toUpperCase().replace('.', '/');
-    const student = {
-      id: roll,
-      name: decoded.name || 'BIT Student',
-      email,
-      photo: decoded.photo || '',
-      branch: 'Computer Science',
-      year: '2nd Year',
-      hostel: 'Vivekananda Hostel'
-    };
-
-    return res.json({ success: true, user: student });
-  } catch (err) {
-    return res.json({ success: false });
-  }
-});
-
-// Verify JWT and return student profile
-app.post('/api/auth/verify', (req, res) => {
-  try {
-    const { token } = req.body;
-    if (!token) return res.json({ success: false });
-
-    // Decode & verify JWT
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret');
-
-    // Extract student info from token
-    const email = decoded.email;
-    if (!email || !email.endsWith('@bitmesra.ac.in')) {
+    if (!email.endsWith('@bitmesra.ac.in')) {
       return res.json({ success: false });
     }
 
-    // Rebuild student object (in production, you'd query the database)
-    const roll = email.split('@')[0].toUpperCase().replace('.', '/');
-    const student = {
-      id: roll,
-      name: decoded.name || 'BIT Student',
-      email,
-      photo: decoded.photo || 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?crop=entropy&cs=tinysrgb&fit=crop&h=150&w=150',
-      branch: 'Computer Science',
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        roll_no,
+        student_name,
+        email,
+        hostel,
+        access_status,
+        access_reason
+      FROM students
+      WHERE LOWER(email) = LOWER($1)
+      `,
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ success: false });
+    }
+
+    const dbStudent = result.rows[0];
+
+    if (dbStudent.access_status === 'revoked') {
+      return res.json({ success: false });
+    }
+
+    const user = {
+      id: dbStudent.roll_no,
+      name: dbStudent.student_name,
+      email: dbStudent.email,
+      photo: decoded.photo || '',
+      branch: 'Mechanical Engineering',
       year: '2nd Year',
-      hostel: 'Vivekananda Hostel'
+      hostel: `Hostel ${dbStudent.hostel}`,
+      hostelNumber: dbStudent.hostel,
+      accessStatus: dbStudent.access_status,
+      accessReason: dbStudent.access_reason || null
     };
 
-    console.log('✅ Token verified for student:', student.name);
-    
-    return res.json({ success: true, user: student });
-  } catch (err) {
-    console.log('❌ Token verification failed:', err.message);
+    return res.json({
+      success: true,
+      user
+    });
+
+  } catch (error) {
+    console.error('Auth verify error:', error.message);
     return res.json({ success: false });
   }
 });
