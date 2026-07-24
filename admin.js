@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = 'https://bitmesspass-backend.onrender.com';
 
 let allAccessLogs = [];
 let allMealReports = [];
