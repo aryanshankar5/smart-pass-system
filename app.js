@@ -118,55 +118,43 @@ function showScreen(screenId) {
 }
 
 // Student Authentication
-function handleStudentLogin() {
-    console.log('Initializing Real Google OAuth...');
-    
-    // Check if Google OAuth is loaded
+let googleOAuthInitialized = false;
+
+function initializeGoogleOAuthOnce() {
+    if (googleOAuthInitialized) return true;
+
     if (typeof google === 'undefined') {
         console.error('Google OAuth SDK not loaded');
         alert('Google OAuth not available. Please refresh the page.');
-        return;
+        return false;
     }
-    
-    // Initialize Google OAuth with your actual Client ID
+
     google.accounts.id.initialize({
-        client_id: '439746768038-882bgdhrt4qmft3el25lqf5djs36bgtg.apps.googleusercontent.com', // Replace with your real Client ID
+        client_id: '439746768038-882bgdhrt4qmft3el25lqf5djs36bgtg.apps.googleusercontent.com',
         callback: handleGoogleResponse,
         auto_select: false,
         cancel_on_tap_outside: false
     });
 
-    // Show Google One Tap prompt
+    googleOAuthInitialized = true;
+    return true;
+}
+
+function handleStudentLogin() {
+    console.log('Starting Google College Gmail login...');
+
+    const ready = initializeGoogleOAuthOnce();
+    if (!ready) return;
+
     google.accounts.id.prompt((notification) => {
         console.log('Google prompt notification:', notification);
-        
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            console.log('One Tap not shown, rendering sign-in button');
-            
-            // Create button container if it doesn't exist
-            let buttonContainer = document.getElementById('google-signin-button');
-            if (!buttonContainer) {
-                buttonContainer = document.createElement('div');
-                buttonContainer.id = 'google-signin-button';
-                buttonContainer.style.marginTop = '15px';
-                
-                // Find the login button and add container after it
-                const loginButton = document.querySelector('.google-login-btn');
-                if (loginButton && loginButton.parentNode) {
-                    loginButton.parentNode.appendChild(buttonContainer);
-                }
-            }
-            
-            // Clear and render Google button
-            buttonContainer.innerHTML = '';
-            google.accounts.id.renderButton(buttonContainer, {
-                theme: 'filled_blue',
-                size: 'large',
-                type: 'standard',
-                text: 'continue_with',
-                shape: 'rectangular',
-                width: 300
-            });
+
+        if (notification.isNotDisplayed()) {
+            alert('Google sign-in could not be displayed. Please allow popups/cookies and try again.');
+        }
+
+        if (notification.isSkippedMoment()) {
+            console.log('Google sign-in skipped or closed by user.');
         }
     });
 }
