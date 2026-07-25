@@ -53,7 +53,7 @@ const appData = {
                 {
             id: "breakfast",
             name: "Breakfast",
-            startTime: "07:30",
+            startTime: "01:30",
             endTime: "09:00",
             displayTime: "7:30 AM - 9:00 AM"
         },
