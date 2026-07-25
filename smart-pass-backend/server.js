@@ -391,6 +391,8 @@ app.post('/api/student/login', async (req, res) => {
     }
 
     console.log('Verifying Google OAuth token...');
+    console.log('ENV GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID);
+    console.log('Token received length:', token ? token.length : 0);
 
     const ticket = await client.verifyIdToken({
       idToken: token,
