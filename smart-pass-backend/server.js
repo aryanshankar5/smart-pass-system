@@ -423,20 +423,21 @@ app.post('/api/student/login', async (req, res) => {
 
     const result = await pool.query(
       `
-      SELECT 
-        id,
-        roll_no,
-        student_name,
-        hostel,
-        email,
-        access_status,
-        access_from,
-        access_until,
-        access_reason,
-        device_id,
-        device_locked
-      FROM students
-      WHERE LOWER(email) = LOWER($1)
+    SELECT 
+      id,
+      roll_no,
+      student_name,
+      hostel,
+      room_number,
+      email,
+      access_status,
+      access_from,
+      access_until,
+      access_reason,
+      device_id,
+      device_locked
+    FROM students
+    WHERE LOWER(email) = LOWER($1)
       `,
       [email]
     );
@@ -580,6 +581,10 @@ app.post('/api/student/login', async (req, res) => {
       year: dbStudent.year || '2nd Year',
       hostel: `Hostel ${dbStudent.hostel}`,
       hostelNumber: dbStudent.hostel,
+      roomNumber: dbStudent.room_number || '',
+      hostelRoom: dbStudent.room_number
+        ? `H${dbStudent.hostel} - ${dbStudent.room_number}`
+        : `H${dbStudent.hostel}`,
       accessStatus: dbStudent.access_status,
       accessReason: dbStudent.access_reason || null
     };
@@ -836,33 +841,84 @@ app.post('/api/location/verify', async (req, res) => {
   } = req.body;
 
   try {
-    const messLat = parseFloat(process.env.MESS_LOCATION_LAT) || 23.4136;
-    const messLng = parseFloat(process.env.MESS_LOCATION_LNG) || 85.4399;
-    const radius = parseInt(process.env.MESS_LOCATION_RADIUS) || 50000;
+    const radius = parseInt(process.env.MESS_LOCATION_RADIUS) || 500;
 
     function calculateDistance(lat1, lng1, lat2, lng2) {
       const R = 6371e3;
-      const φ1 = lat1 * Math.PI / 180;
-      const φ2 = lat2 * Math.PI / 180;
-      const Δφ = (lat2 - lat1) * Math.PI / 180;
-      const Δλ = (lng2 - lng1) * Math.PI / 180;
+      const phi1 = lat1 * Math.PI / 180;
+      const phi2 = lat2 * Math.PI / 180;
+      const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+      const deltaLambda = (lng2 - lng1) * Math.PI / 180;
 
       const a =
-        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-        Math.cos(φ1) * Math.cos(φ2) *
-        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+        Math.cos(phi1) * Math.cos(phi2) *
+        Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
 
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
 
-    const distance = calculateDistance(latitude, longitude, messLat, messLng);
-    const roundedDistance = Math.round(distance);
-    const isValid = distance <= radius;
+    const allowedLocations = [
+      {
+        name: 'Hostel 1',
+        lat: parseFloat(process.env.MESS_LOCATION_HOSTEL_1_LAT),
+        lng: parseFloat(process.env.MESS_LOCATION_HOSTEL_1_LNG)
+      },
+      {
+        name: 'Hostel 2',
+        lat: parseFloat(process.env.MESS_LOCATION_HOSTEL_2_LAT),
+        lng: parseFloat(process.env.MESS_LOCATION_HOSTEL_2_LNG)
+      },
+      {
+        name: 'Hostel 3',
+        lat: parseFloat(process.env.MESS_LOCATION_HOSTEL_3_LAT),
+        lng: parseFloat(process.env.MESS_LOCATION_HOSTEL_3_LNG)
+      },
+      {
+        name: 'Hostel 4',
+        lat: parseFloat(process.env.MESS_LOCATION_HOSTEL_4_LAT),
+        lng: parseFloat(process.env.MESS_LOCATION_HOSTEL_4_LNG)
+      },
+      {
+        name: 'Hostel 12',
+        lat: parseFloat(process.env.MESS_LOCATION_HOSTEL_12_LAT),
+        lng: parseFloat(process.env.MESS_LOCATION_HOSTEL_12_LNG)
+      },
+      {
+        name: 'Hostel 13',
+        lat: parseFloat(process.env.MESS_LOCATION_HOSTEL_13_LAT),
+        lng: parseFloat(process.env.MESS_LOCATION_HOSTEL_13_LNG)
+      }
+    ].filter(loc => !Number.isNaN(loc.lat) && !Number.isNaN(loc.lng));
+
+    let nearestLocation = null;
+    let nearestDistance = Infinity;
+
+    allowedLocations.forEach(loc => {
+      const distance = calculateDistance(
+        latitude,
+        longitude,
+        loc.lat,
+        loc.lng
+      );
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestLocation = loc;
+      }
+    });
+
+    const roundedDistance = Math.round(nearestDistance);
+    const isValid = roundedDistance <= radius;
+
+    const locationName = isValid && nearestLocation
+      ? nearestLocation.name
+      : 'Not in allowed hostel/mess area';
 
     const reason = isValid
-      ? 'Location verified successfully'
-      : `Student is ${roundedDistance}m away from allowed mess area`;
+      ? `Location verified at ${locationName}`
+      : `Student is ${roundedDistance}m away from nearest allowed hostel/mess area`;
 
     await pool.query(
       `
@@ -892,15 +948,18 @@ app.post('/api/location/verify', async (req, res) => {
       ]
     );
 
-    console.log(`Location verification: distance=${roundedDistance}m, valid=${isValid}`);
+    console.log(
+      `Location verification: nearest=${locationName}, distance=${roundedDistance}m, valid=${isValid}`
+    );
 
     res.json({
       isValid,
       distance: roundedDistance,
       accuracy,
+      locationName,
       message: isValid
-        ? 'Location verified - You are at the mess'
-        : `Please move closer to mess hall (${roundedDistance}m away)`
+        ? `You are at ${locationName}`
+        : 'You are not in allowed hostel/mess area'
     });
 
   } catch (error) {
@@ -908,6 +967,7 @@ app.post('/api/location/verify', async (req, res) => {
 
     res.status(500).json({
       isValid: false,
+      locationName: 'Not in allowed hostel/mess area',
       message: error.message
     });
   }
@@ -940,12 +1000,13 @@ app.post('/api/auth/verify', async (req, res) => {
       `
       SELECT
         id,
-        roll_no,
-        student_name,
-        email,
-        hostel,
-        access_status,
-        access_reason
+          roll_no,
+          student_name,
+          email,
+          hostel,
+          room_number,
+          access_status,
+          access_reason
       FROM students
       WHERE LOWER(email) = LOWER($1)
       `,
@@ -971,6 +1032,10 @@ app.post('/api/auth/verify', async (req, res) => {
       year: '2nd Year',
       hostel: `Hostel ${dbStudent.hostel}`,
       hostelNumber: dbStudent.hostel,
+      roomNumber: dbStudent.room_number || '',
+      hostelRoom: dbStudent.room_number
+        ? `H${dbStudent.hostel} - ${dbStudent.room_number}`
+        : `H${dbStudent.hostel}`,
       accessStatus: dbStudent.access_status,
       accessReason: dbStudent.access_reason || null
     };

@@ -29,31 +29,11 @@ let qrExpiryTime = null;
 
 // Application Data
 const appData = {
-    students: [
-        {
-            id: "BTECH/10090/24",
-            name: "Aryan Shankar",
-            email: "aryan.btech2024@bitmesra.ac.in",
-            photo: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?crop=entropy&cs=tinysrgb&fit=crop&h=150&w=150",
-            branch: "Computer Science",
-            year: "2nd Year",
-            hostel: "Vivekananda Hostel"
-        },
-        {
-            id: "BTECH/10091/24", 
-            name: "Priya Sharma",
-            email: "priya.btech2024@bitmesra.ac.in",
-            photo: "https://images.unsplash.com/photo-1494790108755-2616b612b1e5?crop=entropy&cs=tinysrgb&fit=crop&h=150&w=150",
-            branch: "Electronics",
-            year: "2nd Year",
-            hostel: "Saraswati Hostel"
-        }
-    ],
     mealSlots: [
                 {
             id: "breakfast",
             name: "Breakfast",
-            startTime: "01:30",
+            startTime: "00:01",
             endTime: "09:00",
             displayTime: "7:30 AM - 9:00 AM"
         },
@@ -80,15 +60,8 @@ const appData = {
         }
     ],
 
-    messLocation: {
-        latitude: 23.4136,
-        longitude: 85.4399,
-        name: "BIT Mesra Main Mess",
-        radius: 50000
-    },
-    adminCredentials: {
-        username: "admin",
-        password: "admin123"
+    allowedLocation: {
+        name: "Allowed Hostel Area"
     }
 };
 
@@ -222,11 +195,13 @@ function populateStudentData() {
         { id: 'student-name', value: currentUser.name, type: 'text' },
         { id: 'student-roll', value: currentUser.id, type: 'text' },
         { id: 'student-branch', value: currentUser.branch, type: 'text' },
+        { id: 'student-hostel-room', value: currentUser.hostelRoom || currentUser.hostel || '', type: 'text' },
         { id: 'profile-photo', value: currentUser.photo, type: 'src' },
         { id: 'profile-name', value: currentUser.name, type: 'text' },
         { id: 'profile-roll', value: currentUser.id, type: 'text' },
         { id: 'profile-branch', value: currentUser.branch, type: 'text' },
         { id: 'profile-year', value: currentUser.year, type: 'text' },
+        { id: 'profile-hostel-room', value: currentUser.hostelRoom || currentUser.hostel || '', type: 'text' },
         { id: 'profile-hostel', value: currentUser.hostel, type: 'text' },
         { id: 'qr-student-photo', value: currentUser.photo, type: 'src' },
         { id: 'qr-student-name', value: currentUser.name, type: 'text' },
@@ -311,17 +286,8 @@ async function requestLocationPermission() {
             studentName: activeUser?.name || null
         });
 
-        let locationName = result.locationName || 'Allowed Area';
+        let locationName = result.locationName;
 
-    // Calculate distance manually
-    const manualDistance = calculateDistance(
-        currentLocation.latitude,
-        currentLocation.longitude,
-        appData.messLocation.latitude,
-        appData.messLocation.longitude
-    );
-    console.log('- Calculated distance:', Math.round(manualDistance), 'meters');
-    console.log('- Should be valid:', manualDistance <= appData.messLocation.radius);
 
     // Check backend response
     console.log('- Backend result:', result);
@@ -384,10 +350,10 @@ function updateLocationStatus(status, distance = null, errorMessage = null) {
     
     switch (status) {
         case 'checking':
-            locationText.textContent = "📍 Location services ready";
+            locationText.textContent = "Location services ready";
             locationText.className = "location-subtitle";
             if (button) {
-                button.textContent = "📍 Check My Location";
+                button.textContent = "Check My Location";
                 button.disabled = false;
                 button.className = "btn btn--secondary location-check-btn";
             }
@@ -404,7 +370,7 @@ function updateLocationStatus(status, distance = null, errorMessage = null) {
             break;
             
         case 'verified':
-            const verifiedLocationName = errorMessage || 'BIT Mesra Main Mess';
+            const verifiedLocationName = errorMessage || 'Allowed Hostel Area';
             locationText.textContent = `✅ You are at ${verifiedLocationName} - Location Verified`;
             locationText.className = "location-subtitle location-verified";
             if (button) {
@@ -498,7 +464,7 @@ function renderMealSlots() {
                 <div class="warning-icon">📍</div>
                 <div class="warning-content">
                     <h3>Location Required</h3>
-                    <p>You must be at the BIT Mesra mess hall to access meal slots.</p>
+                    <p>You must be inside an allowed hostel area to access meal slots.</p>
                     <p class="warning-subtitle">Click "Check My Location" above to verify your location.</p>
                 </div>
             </div>
@@ -688,7 +654,7 @@ async function generateQR(slot) {
             qrId: finalQrId,
             timestamp,
             validUntil: finalValidUntil,
-            location: "BIT Mesra Main Mess"
+            location: verifiedLocationName 
         },
         verification: {
             institution: "BIT_MESRA",
@@ -932,170 +898,7 @@ function logout() {
 }
 
 
-// Admin Functions
-function switchToAdmin() {
-    console.log('Switching to admin login');
-    showScreen('admin-login');
-}
 
-function switchToStudent() {
-    console.log('Switching to student login');
-    showScreen('student-login');
-}
-
-function handleAdminLogin() {
-    console.log('Admin login attempt');
-    const username = document.getElementById('admin-username');
-    const password = document.getElementById('admin-password');
-    
-    if (!username || !password) {
-        alert('Please enter both username and password.');
-        return;
-    }
-    
-    const usernameVal = username.value.trim();
-    const passwordVal = password.value.trim();
-    
-    console.log('Admin credentials entered:', usernameVal);
-    
-    if (usernameVal === appData.adminCredentials.username && 
-        passwordVal === appData.adminCredentials.password) {
-        console.log('Admin login successful');
-        showScreen('admin-dashboard');
-        
-        // Clear input fields
-        username.value = '';
-        password.value = '';
-    } else {
-        alert('❌ Invalid admin credentials.\n\nDemo credentials:\nUsername: admin\nPassword: admin123');
-    }
-}
-
-function adminLogout() {
-    console.log('Admin logout');
-    showScreen('admin-login');
-}
-
-function startScanning() {
-    console.log('Starting QR scanner');
-    const modal = document.getElementById('scanner-modal');
-    if (modal) {
-        modal.classList.remove('hidden');
-    }
-}
-
-function closeScanner() {
-    console.log('Closing QR scanner');
-    const modal = document.getElementById('scanner-modal');
-    if (modal) {
-        modal.classList.add('hidden');
-    }
-}
-
-function simulateScan() {
-    console.log('Simulating QR scan');
-    
-    // Use current QR data if available, otherwise create mock data
-    const scanData = currentQRData || {
-        studentId: "BTECH/10090/24",
-        studentName: "Aryan Shankar",
-        mealSlot: "Lunch",
-        timestamp: new Date().toISOString(),
-        validUntil: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-        location: appData.messLocation.name,
-        bitMesra: true
-    };
-    
-    displayScannedStudent(scanData);
-    closeScanner();
-}
-
-function displayScannedStudent(qrData) {
-    console.log('Displaying scanned student details:', qrData.studentName);
-    const student = appData.students.find(s => s.id === qrData.studentId);
-    
-    if (student) {
-        // Populate modal with student data
-        const elements = [
-            { id: 'scanned-photo', value: student.photo, type: 'src' },
-            { id: 'scanned-name', value: student.name, type: 'text' },
-            { id: 'scanned-roll', value: student.id, type: 'text' },
-            { id: 'scanned-branch', value: student.branch, type: 'text' },
-            { id: 'scanned-meal', value: qrData.mealSlot, type: 'text' },
-            { id: 'scanned-generated', value: new Date(qrData.timestamp).toLocaleString(), type: 'text' }
-        ];
-        
-        elements.forEach(elem => {
-            const element = document.getElementById(elem.id);
-            if (element) {
-                if (elem.type === 'src') {
-                    element.src = elem.value;
-                    element.alt = `${student.name} photo`;
-                } else {
-                    element.textContent = elem.value;
-                }
-            }
-        });
-        
-        // Set meal time
-        const mealSlot = appData.mealSlots.find(s => s.name === qrData.mealSlot);
-        const timeElem = document.getElementById('scanned-time');
-        if (timeElem && mealSlot) {
-            timeElem.textContent = mealSlot.displayTime;
-        }
-        
-        // Show the modal
-        const modal = document.getElementById('student-details-modal');
-        if (modal) {
-            modal.classList.remove('hidden');
-        }
-    } else {
-        alert('❌ Student not found in database.');
-    }
-}
-
-function closeStudentDetails() {
-    const modal = document.getElementById('student-details-modal');
-    if (modal) {
-        modal.classList.add('hidden');
-    }
-}
-
-function approveMeal() {
-    console.log('Meal approved by admin');
-    alert('✅ Meal approved successfully!\n\nStudent can proceed to collect their meal.');
-    addToRecentScans('Approved');
-    closeStudentDetails();
-}
-
-function rejectMeal() {
-    console.log('Meal rejected by admin');
-    const reason = prompt('Reason for rejection:') || 'No reason provided';
-    alert('❌ Meal rejected.\n\nReason: ' + reason);
-    addToRecentScans('Rejected');
-    closeStudentDetails();
-}
-
-function addToRecentScans(status) {
-    console.log('Adding to recent scans:', status);
-    const scansList = document.querySelector('.scans-list');
-    if (scansList && currentQRData) {
-        const newScan = document.createElement('div');
-        newScan.className = 'scan-item';
-        newScan.innerHTML = `
-            <div class="scan-student">${currentQRData.studentName}</div>
-            <div class="scan-meal">${currentQRData.mealSlot}</div>
-            <div class="scan-time">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-            <div class="scan-status status--${status === 'Approved' ? 'success' : 'error'}">${status}</div>
-        `;
-        scansList.insertBefore(newScan, scansList.firstChild);
-        
-        // Remove oldest scan if more than 5
-        if (scansList.children.length > 5) {
-            scansList.removeChild(scansList.lastChild);
-        }
-    }
-}
 
 // Profile Functions
 function showProfile() {
@@ -1201,12 +1004,6 @@ function setupEventListeners() {
     
     // Keyboard shortcuts
     document.addEventListener('keydown', function(event) {
-        if (event.altKey && event.key === 's') {
-            showScreen('student-login');
-        }
-        if (event.altKey && event.key === 'a') {
-            showScreen('admin-login');
-        }
         if (event.key === 'Escape') {
             const modals = document.querySelectorAll('.modal:not(.hidden)');
             modals.forEach(modal => modal.classList.add('hidden'));
@@ -1218,9 +1015,6 @@ function setupEventListeners() {
     
     console.log('Event listeners setup completed');
 }
-
-// Setup event listeners
-setupEventListeners();
 
 
 // Initialize Application
@@ -1268,27 +1062,15 @@ function initializeApp() {
     
     console.log('✅ App initialization completed');
     console.log('🎨 BIT Mesra color theme: Navy #003366, Orange #FF931E, Light Blue #E6F2F8');
-    console.log('🔐 Demo admin credentials: admin / admin123');
     console.log('🏫 Welcome to BIT Mesra Smart Pass System!');
 }
 
-
 // Make all functions available globally
 window.handleStudentLogin = handleStudentLogin;
-window.switchToAdmin = switchToAdmin;
-window.switchToStudent = switchToStudent;
-window.handleAdminLogin = handleAdminLogin;
 window.toggleMenu = toggleMenu;
 window.backToDashboard = backToDashboard;
 window.showToAdmin = showToAdmin;
 window.logout = logout;
-window.adminLogout = adminLogout;
-window.startScanning = startScanning;
-window.closeScanner = closeScanner;
-window.simulateScan = simulateScan;
-window.closeStudentDetails = closeStudentDetails;
-window.approveMeal = approveMeal;
-window.rejectMeal = rejectMeal;
 window.showProfile = showProfile;
 window.closeProfile = closeProfile;
 window.showSettings = showSettings;
