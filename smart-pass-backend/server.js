@@ -24,31 +24,15 @@ app.use(cors({
 app.use(express.json());
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === "production"
+        ? { rejectUnauthorized: false }
+        : false
 });
 
 pool.connect()
   .then(() => console.log('✅ PostgreSQL connected successfully'))
   .catch((err) => console.error('❌ PostgreSQL connection error:', err));
-
-// Mock data for now (same as frontend)
-const mockData = {
-  students: [
-    {
-      id: "BTECH/10090/24",
-      name: "Aryan Shankar",
-      email: "aryan.btech2024@bitmesra.ac.in",
-      photo: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?crop=entropy&cs=tinysrgb&fit=crop&h=150&w=150",
-      branch: "Computer Science",
-      year: "2nd Year",
-      hostel: "Vivekananda Hostel"
-    }
-  ],
-  adminCredentials: {
-    username: "admin",
-    password: "admin123"
-  }
-};
 
 app.get('/api/admin/students', async (req, res) => {
   try {
@@ -892,6 +876,10 @@ app.post('/api/location/verify', async (req, res) => {
       }
     ].filter(loc => !Number.isNaN(loc.lat) && !Number.isNaN(loc.lng));
 
+    console.log('Allowed Locations:', allowedLocations);
+    console.log('Received GPS:', latitude, longitude, 'Accuracy:', accuracy);
+    console.log('Radius:', radius);
+    
     let nearestLocation = null;
     let nearestDistance = Infinity;
 
@@ -910,15 +898,46 @@ app.post('/api/location/verify', async (req, res) => {
     });
 
     const roundedDistance = Math.round(nearestDistance);
-    const isValid = roundedDistance <= radius;
 
-    const locationName = isValid && nearestLocation
+    let assignedHostel = null;
+
+    if (email) {
+      const studentResult = await pool.query(
+        `
+        SELECT hostel
+        FROM students
+        WHERE LOWER(email) = LOWER($1)
+        `,
+        [email]
+      );
+
+      if (studentResult.rows.length > 0) {
+        assignedHostel = Number(studentResult.rows[0].hostel);
+      }
+    }
+
+    const nearestHostelNumber = nearestLocation
+      ? Number(String(nearestLocation.name).replace('Hostel ', ''))
+      : null;
+
+    const isInsideAnyAllowedHostel = roundedDistance <= radius;
+
+    const isAssignedHostel =
+      assignedHostel &&
+      nearestHostelNumber &&
+      assignedHostel === nearestHostelNumber;
+
+    const isValid = isInsideAnyAllowedHostel && isAssignedHostel;
+
+    const locationName = nearestLocation
       ? nearestLocation.name
-      : 'Not in allowed hostel/mess area';
+      : 'Not in allowed hostel area';
 
     const reason = isValid
-      ? `Location verified at ${locationName}`
-      : `Student is ${roundedDistance}m away from nearest allowed hostel/mess area`;
+      ? `Location verified at assigned ${locationName}`
+      : isInsideAnyAllowedHostel
+        ? `Student is at ${locationName}, but assigned hostel is Hostel ${assignedHostel}`
+        : `Student is ${roundedDistance}m away from nearest allowed hostel area`;
 
     await pool.query(
       `
@@ -957,9 +976,12 @@ app.post('/api/location/verify', async (req, res) => {
       distance: roundedDistance,
       accuracy,
       locationName,
+      assignedHostel: assignedHostel ? `Hostel ${assignedHostel}` : null,
       message: isValid
-        ? `You are at ${locationName}`
-        : 'You are not in allowed hostel/mess area'
+        ? `You are at your assigned ${locationName}`
+        : isInsideAnyAllowedHostel
+          ? `You are at ${locationName}, but your assigned hostel is Hostel ${assignedHostel}`
+          : 'You are not in your assigned hostel area'
     });
 
   } catch (error) {

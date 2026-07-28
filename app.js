@@ -1,6 +1,6 @@
 // API Configuration
-const API_BASE_URL = 'https://bitmesspass-backend.onrender.com';
-
+//const API_BASE_URL = 'https://bitmesspass-backend.onrender.com';
+const API_BASE_URL = 'http://localhost:3001';
 // API Helper Functions
 async function apiCall(endpoint, method = 'GET', data = null) {
     try {
@@ -33,7 +33,7 @@ const appData = {
                 {
             id: "breakfast",
             name: "Breakfast",
-            startTime: "00:01",
+            startTime: "07:30",
             endTime: "09:00",
             displayTime: "7:30 AM - 9:00 AM"
         },
@@ -54,8 +54,8 @@ const appData = {
         {
             id: "dinner",
             name: "Dinner", 
-            startTime: "20:00",
-            endTime: "22:00",
+            startTime: "19:00",
+            endTime: "23:00",
             displayTime: "8:00 PM - 10:00 PM"
         }
     ],
@@ -247,13 +247,17 @@ function checkGeolocation() {
 }
 
 async function requestLocationPermission() {
-    console.log('Requesting location permission...');
+
+    isBackendLocationValid = false;
+    verifiedLocationName = null;
+    userLocation = null;
+
     updateLocationStatus('requesting');
     
     const options = {
         enableHighAccuracy: true,  // Use GPS if available
         timeout: 10000,           // 10 second timeout
-        maximumAge: 30000         // Cache for 30 seconds
+        maximumAge: 10        
     };
     
     try {
@@ -305,7 +309,7 @@ async function requestLocationPermission() {
         isBackendLocationValid = false;
         verifiedLocationName = null;
 
-        updateLocationStatus('invalid', result.distance, locationName);
+        updateLocationStatus('invalid', result.distance, result.message);
         console.log('❌ Location invalid - At:', locationName, 'Distance:', result.distance, 'meters');
     }
 
@@ -374,9 +378,10 @@ function updateLocationStatus(status, distance = null, errorMessage = null) {
             locationText.textContent = `✅ You are at ${verifiedLocationName} - Location Verified`;
             locationText.className = "location-subtitle location-verified";
             if (button) {
-                button.textContent = "✅ Location Verified";
-                button.disabled = true;
-                button.className = "btn btn--success location-check-btn disabled";
+                button.textContent = "Check Location Again";
+                button.disabled = false;
+                button.className = "btn btn--success location-check-btn";
+                button.onclick = requestLocationPermission;
             }
             break;
 
@@ -408,14 +413,14 @@ function updateLocationStatus(status, distance = null, errorMessage = null) {
 function createLocationButton() {
     const locationText = document.getElementById('location-text');
     if (!locationText || !locationText.parentNode) return;
-    
+
     const button = document.createElement('button');
     button.id = 'location-check-btn';
     button.className = 'btn btn--secondary location-check-btn';
-    button.textContent = '📍 Check My Location';
+    button.textContent = 'Check My Location';
+    button.disabled = false;
     button.onclick = requestLocationPermission;
-    
-    // Add button after location text
+
     locationText.parentNode.appendChild(button);
 }
 
@@ -581,11 +586,14 @@ function isCurrentMealActive(slot) {
     return isActive;
 }
 
-
-// QR Code Generation
 // Enhanced QR Code Generation
 async function generateQR(slot) {
-    console.log('Attempting to generate QR for slot:', slot.name);
+
+        if (!isBackendLocationValid) {
+            alert('Location not verified. Please verify that you are inside your assigned hostel area.');
+            renderMealSlots();
+            return;
+        }
 
     const now = new Date();
 
