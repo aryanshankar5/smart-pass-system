@@ -55,7 +55,9 @@
                     </div>
                 </button>
                 <div class="logo">BIT Mesra</div>
-                <div class="nav-spacer"></div>
+                <div class="nav-logo">
+                    <img src="image/logo.png" alt="BIT Logo">
+                </div>
             </div>
             
             <!-- Dropdown Menu -->
@@ -110,13 +112,28 @@
             <div class="nav-content">
                 <button class="back-btn" onclick="backToDashboard()">←</button>
                 <div class="logo">Generate QR</div>
-                <div class="nav-spacer"></div>
+                <div class="nav-logo">
+                    <img src="image/logo.png" alt="BIT Logo">
+                </div>
             </div>
         </nav>
 
         <div class="qr-content">
             <div class="qr-card">
-                <div class="student-info-small">
+                <div class="student-profile-card">
+                    <div class="student-info">
+                        <div class="student-avatar">
+                            <img id="qr-student-photo">
+                        </div>
+
+                        <div class="student-details">
+                            <h3 id="qr-student-name"></h3>
+                            <p id="qr-student-roll"></p>
+                            <p id="qr-student-branch"></p>
+                            <p id="qr-student-hostel"></p>
+                        </div>
+                    </div>
+                </div>
                     <div class="student-avatar-small">
                         <img id="qr-student-photo" src="" alt="Student">
                     </div>
@@ -126,10 +143,9 @@
                     </div>
                 </div>
 
-                <div class="meal-info">
-                    <div class="meal-slot-info">
-                        <div>Meal: <span id="qr-meal-name"></span></div>
-                    </div>
+                <div class="meal-slot-info">
+                    <div>Meal:<span id="qr-meal-name"></span></div>
+                    <div id="qr-date"></div>
                 </div>
 
                 <div class="qr-container">

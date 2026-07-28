@@ -16,11 +16,26 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         }
         
         const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-        const result = await response.json();
+        const text = await response.text();
+        const result = text ? JSON.parse(text) : null;
+
+        if (!response.ok) {
+            console.error('API Error: Non-OK response', {
+                status: response.status,
+                statusText: response.statusText,
+                body: result || text,
+                endpoint: `${API_BASE_URL}${endpoint}`
+            });
+            return {
+                success: false,
+                message: result?.message || `Connection failed: ${response.status} ${response.statusText}`
+            };
+        }
+
         return result;
     } catch (error) {
-        console.error('API Error:', error);
-        return { success: false, message: 'Connection failed' };
+        console.error('API Error:', error, { endpoint: `${API_BASE_URL}${endpoint}`, options });
+        return { success: false, message: 'Connection failed. Is the backend running at ' + API_BASE_URL + ' ?' };
     }
 }
 

@@ -306,11 +306,15 @@ html {
   background-color: var(--color-background);
   -webkit-font-smoothing: antialiased;
   box-sizing: border-box;
+  height: 100%;
 }
 
 body {
   margin: 0;
   padding: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 *,
@@ -2029,15 +2033,20 @@ select.form-control {
 }
 
 .footer{
+    width:100%;
     text-align:center;
     padding:15px;
-    color:#666;
-    font-size:12px;
-    margin-top:20px;
+    background:#0b3b6f;
+    color:white;
+    font-size:13px;
+    margin-top:auto;
+    flex-shrink: 0;
 }
 
 .footer strong{
-    color:#0B3D75;
+    display:block;
+    font-size:14px;
+    margin-bottom:4px;
 }
 
 .header{
@@ -2046,9 +2055,26 @@ justify-content:space-between;
 align-items:center;
 }
 
-.bit-logo{
-height:36px;
-width:36px;
-object-fit:contain;
+.nav-logo img{
+    width:42px;
+    height:42px;
+    object-fit:contain;
 }
 
+.nav-content{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+}
+
+.meal-slot-info{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+#qr-date{
+    font-size:14px;
+    color:#777;
+    font-weight:500;
+}
