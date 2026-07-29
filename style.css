@@ -904,7 +904,7 @@ select.form-control {
 .navbar {
     background: var(--color-primary-navy);
     color: var(--color-white);
-    padding: var(--space-16) var(--space-20);
+    padding: var(--space-10) var(--space-20);
     box-shadow: var(--shadow-sm);
     position: sticky;
     top: 0;
@@ -1168,22 +1168,57 @@ select.form-control {
 }
 
 .qr-card {
-    text-align: center;
+    text-align: left;
     background: var(--color-card-bg);
     border-radius: 24px;
     border: 1px solid var(--color-border);
     padding: var(--space-20);
+    box-shadow: var(--shadow-sm);
 }
 
-.student-info-small {
-    display: flex;
-    align-items: center;
-    gap: var(--space-12);
+.qr-profile-card {
     margin-bottom: var(--space-20);
-    text-align: left;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+}
+
+.qr-profile-card .student-info {
     background: var(--color-secondary-bg);
     padding: var(--space-16);
-    border-radius: 16px;
+    border-radius: 20px;
+}
+
+.qr-profile-card .student-details h3 {
+    margin-bottom: var(--space-4);
+}
+
+.qr-profile-card .student-details p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.meal-slot-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--color-primary-navy);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-20);
+    gap: var(--space-16);
+}
+
+.meal-slot-info .meal-label {
+    font-weight: 600;
+}
+
+.qr-date {
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    text-align: right;
+    white-space: nowrap;
 }
 
 .student-avatar-small {
@@ -2021,8 +2056,7 @@ select.form-control {
   margin-top: 10px;
 }
 
-.qr-container,
-.qr-card {
+.qr-container {
   text-align: center;
 }
 
@@ -2055,6 +2089,10 @@ justify-content:space-between;
 align-items:center;
 }
 
+.nav-logo{
+  height:42px;
+}
+
 .nav-logo img{
     width:42px;
     height:42px;
@@ -2067,11 +2105,11 @@ align-items:center;
     justify-content:space-between;
 }
 
-.meal-slot-info{
+/* .meal-slot-info{
     display:flex;
     justify-content:space-between;
     align-items:center;
-}
+} */
 
 #qr-date{
     font-size:14px;

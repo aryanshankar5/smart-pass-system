@@ -62,7 +62,7 @@ const appData = {
         {
             id: "snacks",
             name: "Snacks",
-            startTime: "17:00",
+            startTime: "15:00",
             endTime: "18:30",
             displayTime: "5:00 PM - 6:30 PM"
         },
@@ -86,6 +86,7 @@ let verifiedLocationName = null;
 let currentUser = null;
 let userLocation = null;
 let qrTimer = null;
+let qrStatusPoll = null;
 let currentQRData = null;
 
 // Screen Management
@@ -220,7 +221,9 @@ function populateStudentData() {
         { id: 'profile-hostel', value: currentUser.hostel, type: 'text' },
         { id: 'qr-student-photo', value: currentUser.photo, type: 'src' },
         { id: 'qr-student-name', value: currentUser.name, type: 'text' },
-        { id: 'qr-student-roll', value: currentUser.id, type: 'text' }
+        { id: 'qr-student-roll', value: currentUser.id, type: 'text' },
+        { id: 'qr-student-branch', value: currentUser.branch, type: 'text' },
+        { id: 'qr-student-hostel-room', value: currentUser.hostelRoom || currentUser.hostel || '', type: 'text' }
     ];
     
     // Populate all elements
@@ -621,13 +624,21 @@ async function generateQR(slot) {
     }
 
     const mealNameElem = document.getElementById('qr-meal-name');
+    const qrDateElem = document.getElementById('qr-date');
+
     if (mealNameElem) {
-    mealNameElem.textContent = slot.name;
+        mealNameElem.textContent = slot.name;
+    }
+    if (qrDateElem) {
+        qrDateElem.textContent = now.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
     }
 
-    
-
-        const [endHour, endMinute] = slot.endTime.split(':').map(Number);
+    const [endHour, endMinute] = slot.endTime.split(':').map(Number);
 
         qrExpiryTime = new Date();
         qrExpiryTime.setHours(endHour, endMinute, 0, 0);
@@ -881,6 +892,41 @@ function calculateTimeLeft() {
     return diff > 0 ? diff : 0;
 }
 
+async function pollQRStatus(qrId) {
+    if (!qrId) return;
+
+    if (qrStatusPoll) {
+        clearInterval(qrStatusPoll);
+    }
+
+    async function checkStatus() {
+        try {
+            const result = await apiCall(`/api/admin/qr-status/${encodeURIComponent(qrId)}`);
+
+            if (result.success && result.qrRecord && result.qrRecord.status === 'used') {
+                clearInterval(qrStatusPoll);
+                qrStatusPoll = null;
+
+                if (qrTimer) {
+                    clearInterval(qrTimer);
+                    qrTimer = null;
+                }
+
+                currentQRData = null;
+                qrExpiryTime = null;
+
+                alert('✅ Your QR has been verified by the checker. Returning to home page.');
+                showScreen('student-dashboard');
+                renderMealSlots();
+            }
+        } catch (error) {
+            console.error('QR status poll failed:', error);
+        }
+    }
+
+    qrStatusPoll = setInterval(checkStatus, 3000);
+    checkStatus();
+}
 
 // Navigation Functions
 function toggleMenu() {
@@ -897,10 +943,17 @@ function backToDashboard() {
         clearInterval(qrTimer);
         qrTimer = null;
     }
+    if (qrStatusPoll) {
+        clearInterval(qrStatusPoll);
+        qrStatusPoll = null;
+    }
     showScreen('student-dashboard');
 }
 
 function showToAdmin() {
+    if (currentQRData && currentQRData.security?.qrId) {
+        pollQRStatus(currentQRData.security.qrId);
+    }
     alert('📱 Present this QR code to the mess admin for scanning.\n\n✅ Valid for ' + document.getElementById('timer').textContent + ' more minutes.');
 }
 
