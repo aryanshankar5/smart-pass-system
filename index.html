@@ -63,7 +63,6 @@
             <!-- Dropdown Menu -->
             <div id="nav-menu" class="nav-menu">
                 <button class="menu-item" onclick="showProfile()">Profile</button>
-                <button class="menu-item" onclick="showSettings()">Settings</button>
                 <button class="menu-item" onclick="logout()">Logout</button>
             </div>
         </nav>
@@ -169,11 +168,49 @@
                     </div>
                     <div class="profile-details">
                         <h3 id="profile-name"></h3>
-                        <p id="profile-roll"></p>
-                        <p id="profile-branch"></p>
-                        <p id="profile-year"></p>
-                        <p id="profile-hostel"></p>
-                        <p id="profile-hostel-room"></p>
+                        <div class="profile-field-row">
+                            <span class="profile-field-label">Roll No</span>
+                            <span id="profile-roll"></span>
+                        </div>
+                        <div class="profile-field-row">
+                            <span class="profile-field-label">Branch</span>
+                            <span id="profile-branch"></span>
+                        </div>
+                        <div class="profile-field-row">
+                            <span class="profile-field-label">Batch</span>
+                            <span id="profile-batch"></span>
+                        </div>
+                        <div class="profile-field-row">
+                            <span class="profile-field-label">Current Year</span>
+                            <span id="profile-year"></span>
+                        </div>
+                        <div class="profile-field-row">
+                            <span class="profile-field-label">Hostel Number</span>
+                            <span id="profile-hostel"></span>
+                        </div>
+                        <div class="profile-field-row">
+                            <span class="profile-field-label">Room Number</span>
+                            <span id="profile-hostel-room"></span>
+                        </div>
+                        <div class="profile-field-row">
+                            <span class="profile-field-label">College Email</span>
+                            <span id="profile-college-email"></span>
+                        </div>
+                        <div class="profile-field-row">
+                            <span class="profile-field-label">Personal Email</span>
+                            <input id="personal-email-input" type="email" class="form-control" disabled>
+                        </div>
+                        <div class="profile-field-row">
+                            <span class="profile-field-label">Phone Number</span>
+                            <input id="personal-phone-input" type="tel" class="form-control" disabled>
+                        </div>
+                    </div>
+                </div>
+                <div class="profile-action-row">
+                    <button id="profile-edit-btn" class="btn btn--secondary btn--full-width" onclick="toggleProfileEdit()">Edit</button>
+                    <div id="profile-edit-actions" class="action-buttons hidden">
+                        <button class="btn btn--primary btn--full-width" onclick="saveProfileChanges()">Save</button>
+                        <button class="btn btn--outline btn--full-width" onclick="cancelProfileEdit()">Cancel</button>
                     </div>
                 </div>
             </div>

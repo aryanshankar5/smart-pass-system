@@ -168,10 +168,16 @@ async function handleGoogleResponse(response) {
             });
         
         if (result.success) {
-            currentUser = result.user;
+            const savedUser = JSON.parse(localStorage.getItem('smartpass_user') || 'null');
+            currentUser = {
+                ...result.user,
+                personalEmail: savedUser?.personalEmail || savedUser?.personal_email || '',
+                phone: savedUser?.phone || savedUser?.phoneNumber || savedUser?.mobile || '',
+                batch: result.user.batch || result.user.year || ''
+            };
 
             localStorage.setItem('smartpass_token', result.token);
-            localStorage.setItem('smartpass_user', JSON.stringify(result.user));
+            localStorage.setItem('smartpass_user', JSON.stringify(currentUser));
 
             console.log('User authenticated via Google OAuth:', currentUser.name);
             
@@ -202,6 +208,13 @@ function populateStudentData() {
         console.error('No current user found');
         return;
     }
+
+    const savedUser = JSON.parse(localStorage.getItem('smartpass_user') || 'null');
+    if (savedUser) {
+        currentUser.personalEmail = currentUser.personalEmail || savedUser.personalEmail || savedUser.personal_email || '';
+        currentUser.phone = currentUser.phone || savedUser.phone || savedUser.phoneNumber || currentUser.mobile || '';
+    }
+    currentUser.batch = currentUser.batch || currentUser.year || '';
     
     console.log('Populating student data for:', currentUser.name);
     
@@ -216,9 +229,13 @@ function populateStudentData() {
         { id: 'profile-name', value: currentUser.name, type: 'text' },
         { id: 'profile-roll', value: currentUser.id, type: 'text' },
         { id: 'profile-branch', value: currentUser.branch, type: 'text' },
+        { id: 'profile-batch', value: currentUser.batch || currentUser.year || '-', type: 'text' },
         { id: 'profile-year', value: currentUser.year, type: 'text' },
         { id: 'profile-hostel-room', value: currentUser.hostelRoom || currentUser.hostel || '', type: 'text' },
         { id: 'profile-hostel', value: currentUser.hostel, type: 'text' },
+        { id: 'profile-college-email', value: currentUser.email, type: 'text' },
+        { id: 'personal-email-input', value: currentUser.personalEmail || currentUser.personal_email || '', type: 'input' },
+        { id: 'personal-phone-input', value: currentUser.phone || currentUser.phoneNumber || currentUser.mobile || '', type: 'input' },
         { id: 'qr-student-photo', value: currentUser.photo, type: 'src' },
         { id: 'qr-student-name', value: currentUser.name, type: 'text' },
         { id: 'qr-student-roll', value: currentUser.id, type: 'text' },
@@ -233,6 +250,8 @@ function populateStudentData() {
             if (elem.type === 'src') {
                 element.src = elem.value;
                 element.alt = `${currentUser.name} photo`;
+            } else if (elem.type === 'input') {
+                element.value = elem.value;
             } else {
                 element.textContent = elem.value;
             }
@@ -918,7 +937,7 @@ async function pollQRStatus(qrId) {
                 currentQRData = null;
                 qrExpiryTime = null;
 
-                alert('✅ Your QR has been verified by the checker. Returning to home page.');
+                alert('✅ Your QR has been verified.');
                 showScreen('student-dashboard');
                 renderMealSlots();
             }
@@ -986,6 +1005,8 @@ function showProfile() {
     if (modal) {
         modal.classList.remove('hidden');
     }
+
+    cancelProfileEdit();
     toggleMenu(); // Close the nav menu
 }
 
@@ -996,67 +1017,65 @@ function closeProfile() {
     }
 }
 
-function showSettings() {
-    const existing = document.getElementById('student-settings-modal');
-    if (existing) {
-        existing.classList.remove('hidden');
+function toggleProfileEdit() {
+    const editActions = document.getElementById('profile-edit-actions');
+    const editBtn = document.getElementById('profile-edit-btn');
+    const personalEmailInput = document.getElementById('personal-email-input');
+    const personalPhoneInput = document.getElementById('personal-phone-input');
+
+    if (!editActions || !editBtn || !personalEmailInput || !personalPhoneInput) return;
+
+    editActions.classList.toggle('hidden');
+    editBtn.classList.toggle('hidden');
+    const editing = !personalEmailInput.disabled;
+    personalEmailInput.disabled = editing;
+    personalPhoneInput.disabled = editing;
+
+    if (!editing) {
+        personalEmailInput.focus();
+    }
+}
+
+async function saveProfileChanges() {
+    const personalEmailInput = document.getElementById('personal-email-input');
+    const personalPhoneInput = document.getElementById('personal-phone-input');
+
+    if (!personalEmailInput || !personalPhoneInput || !currentUser) return;
+
+    const personalEmail = personalEmailInput.value.trim();
+    const personalPhone = personalPhoneInput.value.trim();
+
+    // Only save if something changed
+    if (personalEmail === (currentUser.personalEmail || currentUser.personal_email || '') &&
+        personalPhone === (currentUser.phone || currentUser.phoneNumber || currentUser.mobile || '')) {
+        cancelProfileEdit();
         return;
     }
 
-    const modal = document.createElement('div');
-    modal.id = 'student-settings-modal';
-    modal.className = 'modal';
+    currentUser.personalEmail = personalEmail;
+    currentUser.phone = personalPhone;
 
-    modal.innerHTML = `
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Settings</h3>
-                <button class="modal-close" onclick="closeSettingsModal()">×</button>
-            </div>
+    localStorage.setItem('smartpass_user', JSON.stringify(currentUser));
 
-            <div class="modal-body">
-                <div class="setting-row">
-                    <div>
-                        <strong>Device Lock</strong>
-                        <p>This account is linked to this browser/device for security.</p>
-                    </div>
-                    <span class="status-active">Enabled</span>
-                </div>
-
-                <div class="setting-row">
-                    <div>
-                        <strong>Location Verification</strong>
-                        <p>Required before generating meal QR.</p>
-                    </div>
-                    <span class="status-active">Required</span>
-                </div>
-
-                <div class="setting-row">
-                    <div>
-                        <strong>College Email</strong>
-                        <p>${currentUser?.email || '-'}</p>
-                    </div>
-                </div>
-
-                <button class="btn btn--secondary btn--full-width" onclick="requestLocationPermission()">
-                    Re-check Location
-                </button>
-
-                <button class="btn btn--outline btn--full-width" onclick="logout()">
-                    Logout
-                </button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
+    alert('✅ Your personal contact details have been saved locally.');
+    cancelProfileEdit();
 }
 
-function closeSettingsModal() {
-    const modal = document.getElementById('student-settings-modal');
-    if (modal) {
-        modal.classList.add('hidden');
-    }
+function cancelProfileEdit() {
+    const editActions = document.getElementById('profile-edit-actions');
+    const editBtn = document.getElementById('profile-edit-btn');
+    const personalEmailInput = document.getElementById('personal-email-input');
+    const personalPhoneInput = document.getElementById('personal-phone-input');
+
+    if (!editActions || !editBtn || !personalEmailInput || !personalPhoneInput) return;
+
+    editActions.classList.add('hidden');
+    editBtn.classList.remove('hidden');
+    personalEmailInput.disabled = true;
+    personalPhoneInput.disabled = true;
+
+    personalEmailInput.value = currentUser.personalEmail || currentUser.personal_email || '';
+    personalPhoneInput.value = currentUser.phone || currentUser.phoneNumber || currentUser.mobile || '';
 }
 
 // Event Listeners Setup
@@ -1114,7 +1133,12 @@ function initializeApp() {
         apiCall('/api/auth/verify', 'POST', { token: savedToken })
             .then(res => {
                 if (res.success) {
-                    currentUser = res.user;
+                    const savedUser = JSON.parse(localStorage.getItem('smartpass_user') || 'null');
+                    currentUser = {
+                        ...res.user,
+                        personalEmail: savedUser?.personalEmail || savedUser?.personal_email || '',
+                        phone: savedUser?.phone || savedUser?.phoneNumber || savedUser?.mobile || ''
+                    };
                     console.log('🔄 Restored session for', currentUser.name);
                     populateStudentData();
                     showScreen('student-dashboard');
@@ -1152,7 +1176,9 @@ window.showToAdmin = showToAdmin;
 window.logout = logout;
 window.showProfile = showProfile;
 window.closeProfile = closeProfile;
-window.showSettings = showSettings;
+window.toggleProfileEdit = toggleProfileEdit;
+window.saveProfileChanges = saveProfileChanges;
+window.cancelProfileEdit = cancelProfileEdit;
 
 // Start the application when DOM is loaded
 if (document.readyState === 'loading') {
@@ -1160,5 +1186,3 @@ if (document.readyState === 'loading') {
 } else {
     initializeApp();
 }
-
-window.closeSettingsModal = closeSettingsModal;
