@@ -70,7 +70,7 @@ const appData = {
             id: "dinner",
             name: "Dinner", 
             startTime: "18:40",
-            endTime: "23:00",
+            endTime: "23:59",
             displayTime: "8:00 PM - 10:00 PM"
         }
     ],
