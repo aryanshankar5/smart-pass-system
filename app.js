@@ -69,7 +69,7 @@ const appData = {
         {
             id: "dinner",
             name: "Dinner", 
-            startTime: "19:00",
+            startTime: "18:40",
             endTime: "23:00",
             displayTime: "8:00 PM - 10:00 PM"
         }
@@ -713,6 +713,7 @@ async function generateQR(slot) {
 
     showScreen('qr-screen');
     startQRTimer(calculateTimeLeft());
+    pollQRStatus(finalQrId);
 
     console.log(`🎫 Generated new QR with expiry at ${validUntil}`);
 }
