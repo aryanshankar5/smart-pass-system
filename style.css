@@ -775,13 +775,17 @@ select.form-control {
 
 /* Screen management */
 .screen {
-    display: none;
-    min-height: 100vh;
-    background-color: var(--color-primary-bg);
+  display: none;
 }
 
 .screen.active {
-    display: block;
+  display: block;
+}
+
+/* Use full-height for top-level pages (login, shell) */
+.screen.full-height {
+  min-height: 100vh;
+  background-color: var(--color-primary-bg);
 }
 
 /* Login Screens */
@@ -949,6 +953,21 @@ select.form-control {
     color: var(--color-white);
 }
 
+.top-right-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.login-top-right {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 48px;
+  height: 48px;
+}
+
 .nav-spacer {
     width: 36px;
 }
@@ -987,6 +1006,63 @@ select.form-control {
     opacity: 1;
     visibility: visible;
 }
+
+/* Admin dashboard layout */
+.admin-layout {
+  display: flex;
+  gap: var(--space-20);
+  margin: 20px auto;
+}
+
+.admin-sidebar {
+  width: 220px;
+  background: linear-gradient(180deg, var(--color-primary-navy), #0b2a47);
+  color: var(--color-white);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: var(--shadow-md);
+  height: calc(100vh - 110px);
+  position: sticky;
+  top: 70px;
+}
+
+.sidebar-header {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-lg);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.sidebar-nav { display:flex; flex-direction:column; gap:8px; }
+.sidebar-item {
+  background: transparent;
+  color: var(--color-white);
+  border: none;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.sidebar-item:hover { background: rgba(255,255,255,0.06); }
+.sidebar-item.active { background: rgba(255,255,255,0.08); font-weight:600; }
+
+.admin-main { flex:1; min-height: 600px; }
+.admin-section { display: none; }
+.admin-section.active { display: block; }
+
+.card { margin-bottom: var(--space-20); }
+
+/* Tighter filters area for admin */
+.admin-filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+.admin-filters .form-control { width: auto; min-width: 160px; }
+
+.table-responsive { overflow:auto; max-height: 420px; }
+.admin-table th, .admin-table td { padding: 10px 12px; }
+
+/* Small adjustments for professional look */
+.stat-card { background: linear-gradient(180deg,#fff,#f6f9fc); border-radius:12px; padding:12px; box-shadow:var(--shadow-sm); }
+.stat-number { font-size:1.4rem; font-weight:700; color:var(--color-primary-navy); }
 
 .menu-item {
     display: block;

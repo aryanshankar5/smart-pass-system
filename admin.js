@@ -13,11 +13,34 @@ let currentVerifiedQR = null;
 let allLoginLogs = [];
 
 function showScreen(screenId) {
-  document.querySelectorAll('.screen').forEach(screen => {
-    screen.classList.remove('active');
-  });
+  const screens = document.querySelectorAll('.screen');
 
-  document.getElementById(screenId).classList.add('active');
+  // If showing login or forgot-password, hide everything and show that screen alone
+  if (screenId === 'admin-login-page' || screenId === 'forgot-password-page') {
+    screens.forEach(s => s.classList.remove('active'));
+    const el = document.getElementById(screenId);
+    if (el) el.classList.add('active');
+  } else {
+    // Keep the main admin shell visible (admin-dashboard-page) and hide other screens
+    screens.forEach(s => {
+      if (s.id === 'admin-dashboard-page') return; // keep the shell
+      s.classList.remove('active');
+    });
+
+    // ensure admin shell is active
+    const shell = document.getElementById('admin-dashboard-page');
+    if (shell) shell.classList.add('active');
+
+    // show the requested admin screen (verify, logs, etc.)
+    const el = document.getElementById(screenId);
+    if (el) el.classList.add('active');
+  }
+
+  // update sidebar active state if present
+  document.querySelectorAll('.sidebar-item').forEach(btn => {
+    const target = btn.getAttribute('data-target');
+    if (target === screenId) btn.classList.add('active'); else btn.classList.remove('active');
+  });
 }
 
 async function apiCall(endpoint, method = 'GET', data = null) {
@@ -50,6 +73,8 @@ function showForgotPassword() {
   showScreen('forgot-password-page');
 }
 
+// Note: sidebar now navigates between full screens via `showScreen`.
+
 function showAdminLogin() {
   showScreen('admin-login-page');
 }
@@ -73,7 +98,7 @@ async function adminLogin() {
     localStorage.setItem('smartpass_admin_token', adminToken);
     localStorage.setItem('smartpass_admin_user', JSON.stringify(adminUser));
 
-    showScreen('admin-dashboard-page');
+    showScreen('admin-home-page');
     await loadStudents();
     await loadLoginLogs();
     await loadLocationLogs();
@@ -316,7 +341,7 @@ async function markQRUsed() {
 
 window.addEventListener('load', async () => {
   if (adminToken && adminUser) {
-    showScreen('admin-dashboard-page');
+    showScreen('admin-home-page');
     await loadStudents();
     await loadLoginLogs();
     await loadLocationLogs();
@@ -854,3 +879,4 @@ window.loadLocationLogs = loadLocationLogs;
 window.startCameraScanner = startCameraScanner;
 window.stopCameraScanner = stopCameraScanner;
 window.loadLoginLogs = loadLoginLogs;
+// legacy: showAdminSection removed; use showScreen('admin-...-page') instead
