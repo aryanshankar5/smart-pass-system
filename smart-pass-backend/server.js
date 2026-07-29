@@ -1333,11 +1333,34 @@ app.post('/api/admin/verify-qr', async (req, res) => {
       });
     }
 
+    const updatedTicketResult = await pool.query(
+      `
+      UPDATE tickets
+      SET status = 'used',
+          used_at = CURRENT_TIMESTAMP,
+          verified_by = 'admin'
+      WHERE qr_id = $1
+        AND status = 'active'
+      RETURNING *
+      `,
+      [qrId]
+    );
+
+    const updatedTicket = updatedTicketResult.rows[0] || ticket;
+
+    await pool.query(
+      `
+      INSERT INTO scan_logs (qr_id, roll_no, email, meal_slot, scan_status, message, scanned_by)
+      VALUES ($1, $2, $3, $4, 'success', 'QR verified and marked as used', 'admin')
+      `,
+      [qrId, updatedTicket.roll_no, updatedTicket.email, updatedTicket.meal_slot]
+    );
+
     const student = {
-      id: ticket.roll_no || studentId,
-      name: ticket.student_name || studentName,
-      email: ticket.email || studentEmail,
-      hostel: `Hostel ${ticket.hostel}`,
+      id: updatedTicket.roll_no || studentId,
+      name: updatedTicket.student_name || studentName,
+      email: updatedTicket.email || studentEmail,
+      hostel: `Hostel ${updatedTicket.hostel}`,
       branch: 'Mechanical Engineering',
       year: '2nd Year',
       photo: ''
@@ -1346,7 +1369,7 @@ app.post('/api/admin/verify-qr', async (req, res) => {
     console.log('✅ QR verification successful:', {
       qrId,
       student: student.name,
-      meal: ticket.meal_slot
+      meal: updatedTicket.meal_slot
     });
 
     res.json({
@@ -1354,13 +1377,13 @@ app.post('/api/admin/verify-qr', async (req, res) => {
       student,
       mealData: data,
       qrRecord: {
-        qrId: ticket.qr_id,
-        ticketId: ticket.ticket_id,
-        mealSlot: ticket.meal_slot,
-        status: ticket.status,
-        validUntil: ticket.valid_until
+        qrId: updatedTicket.qr_id,
+        ticketId: updatedTicket.ticket_id,
+        mealSlot: updatedTicket.meal_slot,
+        status: updatedTicket.status,
+        validUntil: updatedTicket.valid_until
       },
-      message: 'QR code verified successfully'
+      message: 'QR code verified successfully and marked as used'
     });
 
   } catch (error) {
@@ -1424,8 +1447,41 @@ app.post('/api/admin/use-qr', async (req, res) => {
   }
 });
 
-// Get QR status (for debugging)
+// Get QR status (for debugging and student polling)
 app.get('/api/admin/qr-status/:qrId', async (req, res) => {
+  try {
+    const qrId = req.params.qrId;
+
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM tickets
+      WHERE qr_id = $1
+      `,
+      [qrId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'QR not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      qrRecord: result.rows[0]
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+app.get('/api/student/qr-status/:qrId', async (req, res) => {
   try {
     const qrId = req.params.qrId;
 

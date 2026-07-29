@@ -902,7 +902,9 @@ async function pollQRStatus(qrId) {
 
     async function checkStatus() {
         try {
-            const result = await apiCall(`/api/admin/qr-status/${encodeURIComponent(qrId)}`);
+            console.log('Polling QR status for', qrId);
+            const result = await apiCall(`/api/student/qr-status/${encodeURIComponent(qrId)}`);
+            console.log('QR status poll result:', result);
 
             if (result.success && result.qrRecord && result.qrRecord.status === 'used') {
                 clearInterval(qrStatusPoll);
