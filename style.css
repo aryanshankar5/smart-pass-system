@@ -1194,6 +1194,78 @@ select.form-control {
     margin-bottom: var(--space-4);
 }
 
+/* Profile screen specific layout */
+.profile-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-24);
+}
+
+.profile-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-16);
+    padding-bottom: var(--space-8);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.profile-avatar {
+    width: 110px;
+    height: 110px;
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    border: 4px solid var(--color-ring);
+    background: var(--color-white);
+}
+
+.profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-details h3 {
+    margin: 0;
+    font-size: calc(var(--font-size-xl) + 2px);
+}
+
+.profile-details p {
+    margin: 4px 0 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.profile-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-12);
+}
+
+.profile-label {
+    font-weight: 600;
+    color: var(--color-primary-navy);
+}
+
+.profile-input {
+    width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    padding: var(--space-12);
+    background: var(--color-white);
+}
+
+.profile-input:focus {
+    outline: none;
+    border-color: var(--color-primary-orange);
+    box-shadow: 0 0 0 4px rgba(255, 167, 38, 0.12);
+}
+
+.profile-save-row {
+    margin-top: var(--space-8);
+}
+
 .qr-profile-card .student-details p {
     margin: 0;
     color: var(--color-text-secondary);

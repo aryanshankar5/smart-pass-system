@@ -579,6 +579,8 @@ app.post('/api/student/login', async (req, res) => {
       hostelRoom: dbStudent.room_number
         ? `H${dbStudent.hostel} - ${dbStudent.room_number}`
         : `H${dbStudent.hostel}`,
+      personalEmail: dbStudent.personal_email || '',
+      phone: dbStudent.phone || '',
       accessStatus: dbStudent.access_status,
       accessReason: dbStudent.access_reason || null
     };
@@ -1032,13 +1034,15 @@ app.post('/api/auth/verify', async (req, res) => {
       `
       SELECT
         id,
-          roll_no,
-          student_name,
-          email,
-          hostel,
-          room_number,
-          access_status,
-          access_reason
+        roll_no,
+        student_name,
+        email,
+        personal_email,
+        phone,
+        hostel,
+        room_number,
+        access_status,
+        access_reason
       FROM students
       WHERE LOWER(email) = LOWER($1)
       `,
@@ -1068,6 +1072,8 @@ app.post('/api/auth/verify', async (req, res) => {
       hostelRoom: dbStudent.room_number
         ? `H${dbStudent.hostel} - ${dbStudent.room_number}`
         : `H${dbStudent.hostel}`,
+      personalEmail: dbStudent.personal_email || '',
+      phone: dbStudent.phone || '',
       accessStatus: dbStudent.access_status,
       accessReason: dbStudent.access_reason || null
     };
@@ -1076,10 +1082,71 @@ app.post('/api/auth/verify', async (req, res) => {
       success: true,
       user
     });
-
   } catch (error) {
     console.error('Auth verify error:', error.message);
     return res.json({ success: false });
+  }
+});
+
+// Student Profile Update
+app.post('/api/student/profile/update', async (req, res) => {
+  try {
+    const { token, personalEmail, phone } = req.body;
+
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'Authentication token required' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret');
+    const email = String(decoded.email || '').toLowerCase();
+
+    if (!email.endsWith('@bitmesra.ac.in')) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+
+    const updateResult = await pool.query(
+      `
+      UPDATE students
+      SET personal_email = $1,
+          phone = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE LOWER(email) = LOWER($3)
+      RETURNING roll_no AS "id",
+                student_name AS "name",
+                email,
+                personal_email,
+                phone,
+                hostel,
+                room_number,
+                access_status,
+                access_reason
+      `,
+      [personalEmail || null, phone || null, email]
+    );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    const dbStudent = updateResult.rows[0];
+    return res.json({
+      success: true,
+      user: {
+        id: dbStudent.id,
+        name: dbStudent.name,
+        email: dbStudent.email,
+        personalEmail: dbStudent.personal_email || '',
+        phone: dbStudent.phone || '',
+        hostel: `Hostel ${dbStudent.hostel}`,
+        roomNumber: dbStudent.room_number || '',
+        hostelRoom: dbStudent.room_number ? `H${dbStudent.hostel} - ${dbStudent.room_number}` : `H${dbStudent.hostel}`,
+        accessStatus: dbStudent.access_status,
+        accessReason: dbStudent.access_reason || null
+      }
+    });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    return res.status(500).json({ success: false, message: 'Unable to update profile' });
   }
 });
 

@@ -154,64 +154,45 @@
     </div>
 
 
-    <!-- Profile Modal -->
-    <div id="profile-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Profile</h3>
-                <button class="close-btn" onclick="closeProfile()">&times;</button>
+    <!-- Profile Screen -->
+    <div id="profile-screen" class="screen">
+        <nav class="navbar">
+            <div class="nav-content">
+                <button class="back-btn" onclick="backToDashboard()">←</button>
+                <div class="logo">Profile</div>
+                <div class="nav-logo">
+                    <img src="image/logo.png" alt="BIT Logo">
+                </div>
             </div>
-            <div class="modal-body">
-                <div class="profile-info">
-                    <div class="student-avatar-large">
-                        <img id="profile-photo" src="" alt="Student">
+        </nav>
+
+        <div class="qr-content">
+            <div class="qr-card profile-card">
+                <div class="profile-header">
+                    <div class="student-avatar profile-avatar">
+                        <img id="profile-photo" src="" alt="Student Photo">
                     </div>
-                    <div class="profile-details">
+                    <div class="student-details profile-details">
                         <h3 id="profile-name"></h3>
-                        <div class="profile-field-row">
-                            <span class="profile-field-label">Roll No</span>
-                            <span id="profile-roll"></span>
-                        </div>
-                        <div class="profile-field-row">
-                            <span class="profile-field-label">Branch</span>
-                            <span id="profile-branch"></span>
-                        </div>
-                        <div class="profile-field-row">
-                            <span class="profile-field-label">Batch</span>
-                            <span id="profile-batch"></span>
-                        </div>
-                        <div class="profile-field-row">
-                            <span class="profile-field-label">Current Year</span>
-                            <span id="profile-year"></span>
-                        </div>
-                        <div class="profile-field-row">
-                            <span class="profile-field-label">Hostel Number</span>
-                            <span id="profile-hostel"></span>
-                        </div>
-                        <div class="profile-field-row">
-                            <span class="profile-field-label">Room Number</span>
-                            <span id="profile-hostel-room"></span>
-                        </div>
-                        <div class="profile-field-row">
-                            <span class="profile-field-label">College Email</span>
-                            <span id="profile-college-email"></span>
-                        </div>
-                        <div class="profile-field-row">
-                            <span class="profile-field-label">Personal Email</span>
-                            <input id="personal-email-input" type="email" class="form-control" disabled>
-                        </div>
-                        <div class="profile-field-row">
-                            <span class="profile-field-label">Phone Number</span>
-                            <input id="personal-phone-input" type="tel" class="form-control" disabled>
-                        </div>
+                        <p id="profile-roll"></p>
+                        <p id="profile-branch"></p>
+                        <p id="profile-batch"></p>
+                        <p id="profile-year"></p>
+                        <p id="profile-hostel"></p>
+                        <p id="profile-hostel-room"></p>
+                        <p id="profile-college-email"></p>
                     </div>
                 </div>
-                <div class="profile-action-row">
-                    <button id="profile-edit-btn" class="btn btn--secondary btn--full-width" onclick="toggleProfileEdit()">Edit</button>
-                    <div id="profile-edit-actions" class="action-buttons hidden">
-                        <button class="btn btn--primary btn--full-width" onclick="saveProfileChanges()">Save</button>
-                        <button class="btn btn--outline btn--full-width" onclick="cancelProfileEdit()">Cancel</button>
-                    </div>
+
+                <div class="profile-form">
+                    <label class="profile-label" for="personal-email-input">Personal Email</label>
+                    <input id="personal-email-input" type="email" class="form-control profile-input" readonly onclick="enableProfileField(this)">
+                    <label class="profile-label" for="personal-phone-input">Phone Number</label>
+                    <input id="personal-phone-input" type="tel" class="form-control profile-input" readonly onclick="enableProfileField(this)">
+                </div>
+
+                <div class="profile-save-row">
+                    <button class="btn btn--primary btn--full-width" onclick="saveProfileChanges()">Save</button>
                 </div>
             </div>
         </div>

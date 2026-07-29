@@ -168,11 +168,10 @@ async function handleGoogleResponse(response) {
             });
         
         if (result.success) {
-            const savedUser = JSON.parse(localStorage.getItem('smartpass_user') || 'null');
             currentUser = {
                 ...result.user,
-                personalEmail: savedUser?.personalEmail || savedUser?.personal_email || '',
-                phone: savedUser?.phone || savedUser?.phoneNumber || savedUser?.mobile || '',
+                personalEmail: result.user.personalEmail || result.user.personal_email || '',
+                phone: result.user.phone || result.user.phoneNumber || result.user.mobile || '',
                 batch: result.user.batch || result.user.year || ''
             };
 
@@ -236,7 +235,6 @@ function populateStudentData() {
         { id: 'profile-college-email', value: currentUser.email, type: 'text' },
         { id: 'personal-email-input', value: currentUser.personalEmail || currentUser.personal_email || '', type: 'input' },
         { id: 'personal-phone-input', value: currentUser.phone || currentUser.phoneNumber || currentUser.mobile || '', type: 'input' },
-        { id: 'qr-student-photo', value: currentUser.photo, type: 'src' },
         { id: 'qr-student-name', value: currentUser.name, type: 'text' },
         { id: 'qr-student-roll', value: currentUser.id, type: 'text' },
         { id: 'qr-student-branch', value: currentUser.branch, type: 'text' },
@@ -252,6 +250,9 @@ function populateStudentData() {
                 element.alt = `${currentUser.name} photo`;
             } else if (elem.type === 'input') {
                 element.value = elem.value;
+                if (element.id === 'personal-email-input' || element.id === 'personal-phone-input') {
+                    element.readOnly = true;
+                }
             } else {
                 element.textContent = elem.value;
             }
@@ -1000,39 +1001,16 @@ function logout() {
 
 // Profile Functions
 function showProfile() {
-    console.log('Showing profile modal');
-    const modal = document.getElementById('profile-modal');
-    if (modal) {
-        modal.classList.remove('hidden');
-    }
-
-    cancelProfileEdit();
+    console.log('Showing profile screen');
+    populateStudentData();
+    showScreen('profile-screen');
     toggleMenu(); // Close the nav menu
 }
 
-function closeProfile() {
-    const modal = document.getElementById('profile-modal');
-    if (modal) {
-        modal.classList.add('hidden');
-    }
-}
-
-function toggleProfileEdit() {
-    const editActions = document.getElementById('profile-edit-actions');
-    const editBtn = document.getElementById('profile-edit-btn');
-    const personalEmailInput = document.getElementById('personal-email-input');
-    const personalPhoneInput = document.getElementById('personal-phone-input');
-
-    if (!editActions || !editBtn || !personalEmailInput || !personalPhoneInput) return;
-
-    editActions.classList.toggle('hidden');
-    editBtn.classList.toggle('hidden');
-    const editing = !personalEmailInput.disabled;
-    personalEmailInput.disabled = editing;
-    personalPhoneInput.disabled = editing;
-
-    if (!editing) {
-        personalEmailInput.focus();
+function enableProfileField(field) {
+    if (field) {
+        field.readOnly = false;
+        field.focus();
     }
 }
 
@@ -1045,20 +1023,37 @@ async function saveProfileChanges() {
     const personalEmail = personalEmailInput.value.trim();
     const personalPhone = personalPhoneInput.value.trim();
 
-    // Only save if something changed
-    if (personalEmail === (currentUser.personalEmail || currentUser.personal_email || '') &&
-        personalPhone === (currentUser.phone || currentUser.phoneNumber || currentUser.mobile || '')) {
-        cancelProfileEdit();
+    const changed = personalEmail !== (currentUser.personalEmail || currentUser.personal_email || '') ||
+        personalPhone !== (currentUser.phone || currentUser.phoneNumber || currentUser.mobile || '');
+
+    if (!changed) {
+        alert('No changes detected.');
+        return;
+    }
+
+    const token = localStorage.getItem('smartpass_token');
+    if (!token) {
+        alert('Session expired. Please log in again.');
+        logout();
+        return;
+    }
+
+    const result = await apiCall('/api/student/profile/update', 'POST', {
+        token,
+        personalEmail: personalEmail || null,
+        phone: personalPhone || null
+    });
+
+    if (!result.success) {
+        alert('❌ Unable to save your profile. ' + (result.message || 'Please try again.'));
         return;
     }
 
     currentUser.personalEmail = personalEmail;
     currentUser.phone = personalPhone;
-
     localStorage.setItem('smartpass_user', JSON.stringify(currentUser));
 
-    alert('✅ Your personal contact details have been saved locally.');
-    cancelProfileEdit();
+    alert('✅ Your personal contact details have been updated successfully.');
 }
 
 function cancelProfileEdit() {
@@ -1175,10 +1170,8 @@ window.backToDashboard = backToDashboard;
 window.showToAdmin = showToAdmin;
 window.logout = logout;
 window.showProfile = showProfile;
-window.closeProfile = closeProfile;
-window.toggleProfileEdit = toggleProfileEdit;
+window.enableProfileField = enableProfileField;
 window.saveProfileChanges = saveProfileChanges;
-window.cancelProfileEdit = cancelProfileEdit;
 
 // Start the application when DOM is loaded
 if (document.readyState === 'loading') {
