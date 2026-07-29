@@ -40,8 +40,34 @@ const pool = new Pool({
         : false
 });
 
+async function createDefaultAdmin() {
+  try {
+    const username = 'admin';
+    const password = 'admin123';
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(
+      `
+      INSERT INTO admins (username, password_hash, role, allowed_hostels)
+      VALUES ($1, $2, 'superadmin', ARRAY[1,2,3,4,5,6,7,8,9,10])
+      ON CONFLICT (username)
+      DO UPDATE SET password_hash = EXCLUDED.password_hash
+      RETURNING id, username, role, allowed_hostels
+      `,
+      [username, passwordHash]
+    );
+
+    console.log('✅ Default admin created:', result.rows[0].username);
+  } catch (error) {
+    console.error('❌ Default admin creation failed:', error);
+  }
+}
+
 pool.connect()
-  .then(() => console.log('✅ PostgreSQL connected successfully'))
+  .then(async () => {
+    console.log('✅ PostgreSQL connected successfully');
+    await createDefaultAdmin();
+  })
   .catch((err) => console.error('❌ PostgreSQL connection error:', err));
 
 app.get('/api/admin/students', async (req, res) => {
@@ -1311,9 +1337,10 @@ app.post('/api/student/generate-qr', async (req, res) => {
 
 // QR Code Verification (Enhanced)
 app.post('/api/admin/verify-qr', async (req, res) => {
-  const { qrData } = req.body;
+  const { qrData, scannedBy } = req.body;
+  const verifier = scannedBy || 'admin';
 
-  console.log('🔍 QR verification request received');
+  console.log('🔍 QR verification request received by', verifier);
 
   try {
     const data = JSON.parse(qrData);
@@ -1345,9 +1372,9 @@ app.post('/api/admin/verify-qr', async (req, res) => {
       await pool.query(
         `
         INSERT INTO scan_logs (qr_id, roll_no, email, meal_slot, scan_status, message, scanned_by)
-        VALUES ($1, $2, $3, $4, 'invalid', 'QR code not found', 'admin')
+        VALUES ($1, $2, $3, $4, 'invalid', 'QR code not found', $5)
         `,
-        [qrId, studentId, studentEmail, mealSlot]
+        [qrId, studentId, studentEmail, mealSlot, verifier]
       );
 
       return res.status(404).json({
@@ -1374,9 +1401,9 @@ app.post('/api/admin/verify-qr', async (req, res) => {
       await pool.query(
         `
         INSERT INTO scan_logs (qr_id, roll_no, email, meal_slot, scan_status, message, scanned_by)
-        VALUES ($1, $2, $3, $4, 'expired', 'QR code expired', 'admin')
+        VALUES ($1, $2, $3, $4, 'expired', 'QR code expired', $5)
         `,
-        [qrId, ticket.roll_no, ticket.email, ticket.meal_slot]
+        [qrId, ticket.roll_no, ticket.email, ticket.meal_slot, verifier]
       );
 
       return res.status(400).json({
@@ -1389,9 +1416,9 @@ app.post('/api/admin/verify-qr', async (req, res) => {
       await pool.query(
         `
         INSERT INTO scan_logs (qr_id, roll_no, email, meal_slot, scan_status, message, scanned_by)
-        VALUES ($1, $2, $3, $4, 'duplicate', 'QR code already used', 'admin')
+        VALUES ($1, $2, $3, $4, 'duplicate', 'QR code already used', $5)
         `,
-        [qrId, ticket.roll_no, ticket.email, ticket.meal_slot]
+        [qrId, ticket.roll_no, ticket.email, ticket.meal_slot, verifier]
       );
 
       return res.status(400).json({
@@ -1405,12 +1432,12 @@ app.post('/api/admin/verify-qr', async (req, res) => {
       UPDATE tickets
       SET status = 'used',
           used_at = CURRENT_TIMESTAMP,
-          verified_by = 'admin'
+          verified_by = $2
       WHERE qr_id = $1
         AND status = 'active'
       RETURNING *
       `,
-      [qrId]
+      [qrId, verifier]
     );
 
     const updatedTicket = updatedTicketResult.rows[0] || ticket;
@@ -1418,9 +1445,9 @@ app.post('/api/admin/verify-qr', async (req, res) => {
     await pool.query(
       `
       INSERT INTO scan_logs (qr_id, roll_no, email, meal_slot, scan_status, message, scanned_by)
-      VALUES ($1, $2, $3, $4, 'success', 'QR verified and marked as used', 'admin')
+      VALUES ($1, $2, $3, $4, 'success', 'QR verified and marked as used', $5)
       `,
-      [qrId, updatedTicket.roll_no, updatedTicket.email, updatedTicket.meal_slot]
+      [qrId, updatedTicket.roll_no, updatedTicket.email, updatedTicket.meal_slot, verifier]
     );
 
     const student = {
@@ -2225,6 +2252,162 @@ app.get('/api/admin/export/meal-reports.csv', async (req, res) => {
 
   } catch (error) {
     res.status(500).send(error.message);
+  }
+});
+
+app.post('/api/checker/manual-entry', async (req, res) => {
+  try {
+    const { rollNo, mealSlot, email, scannedBy } = req.body;
+    const verifier = scannedBy || 'checker';
+
+    if (!rollNo || !mealSlot) {
+      return res.status(400).json({
+        success: false,
+        message: 'Roll number and meal slot are required.'
+      });
+    }
+
+    const normalizedRollNo = String(rollNo).trim().replaceAll('-', '/').toUpperCase();
+    const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
+
+    const studentResult = await pool.query(
+      `
+      SELECT roll_no, student_name, email, hostel, access_status
+      FROM students
+      WHERE REPLACE(roll_no, '-', '/') = $1
+        OR LOWER(email) = $2
+      `,
+      [normalizedRollNo, normalizedEmail]
+    );
+
+    if (studentResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found in database.'
+      });
+    }
+
+    const student = studentResult.rows[0];
+
+    if (student.access_status === 'revoked') {
+      return res.status(403).json({
+        success: false,
+        message: 'Student access is revoked. Contact admin.'
+      });
+    }
+
+    const now = new Date();
+    const ticketDate = now.toISOString().split('T')[0];
+    const ticketId = `${student.roll_no.replaceAll('/', '-')}_${ticketDate}_${mealSlot.toLowerCase()}`;
+    const qrId = `manual-${student.roll_no.replaceAll('/', '-')}-${Date.now()}`;
+
+    const existingTicket = await pool.query(
+      `
+      SELECT * FROM tickets
+      WHERE roll_no = $1
+        AND ticket_date = $2
+        AND LOWER(meal_slot) = LOWER($3)
+      `,
+      [student.roll_no, ticketDate, mealSlot]
+    );
+
+    if (existingTicket.rows.length > 0) {
+      const ticket = existingTicket.rows[0];
+      if (ticket.status === 'used') {
+        return res.status(400).json({
+          success: false,
+          message: 'This meal has already been recorded for the student today.'
+        });
+      }
+
+      await pool.query(
+        `
+        UPDATE tickets
+        SET status = 'used', used_at = CURRENT_TIMESTAMP, verified_by = $2
+        WHERE id = $1
+        `,
+        [ticket.id, verifier]
+      );
+
+      await pool.query(
+        `
+        INSERT INTO scan_logs (qr_id, roll_no, email, meal_slot, scan_status, message, scanned_by)
+        VALUES ($1, $2, $3, $4, 'manual', 'Manual meal recorded by checker', $5)
+        `,
+        [ticket.qr_id, student.roll_no, student.email, mealSlot, verifier]
+      );
+
+      return res.json({
+        success: true,
+        message: 'Manual meal entry recorded successfully.',
+        student: {
+          rollNo: student.roll_no,
+          name: student.student_name,
+          email: student.email,
+          hostel: student.hostel
+        },
+        ticket
+      });
+    }
+
+    const insertResult = await pool.query(
+      `
+      INSERT INTO tickets (
+        ticket_id,
+        qr_id,
+        roll_no,
+        student_name,
+        email,
+        hostel,
+        meal_slot,
+        ticket_date,
+        status,
+        generated_at,
+        valid_until,
+        used_at,
+        verified_by
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'used', $9, $9, $9, $10)
+      RETURNING *
+      `,
+      [
+        ticketId,
+        qrId,
+        student.roll_no,
+        student.student_name,
+        student.email,
+        student.hostel,
+        mealSlot,
+        ticketDate,
+        now.toISOString(),
+        verifier
+      ]
+    );
+
+    const ticket = insertResult.rows[0];
+
+    await pool.query(
+      `
+      INSERT INTO scan_logs (qr_id, roll_no, email, meal_slot, scan_status, message, scanned_by)
+      VALUES ($1, $2, $3, $4, 'manual', 'Manual meal recorded by checker', $5)
+      `,
+      [qrId, student.roll_no, student.email, mealSlot, verifier]
+    );
+
+    res.json({
+      success: true,
+      message: 'Manual meal entry recorded successfully.',
+      student: {
+        rollNo: student.roll_no,
+        name: student.student_name,
+        email: student.email,
+        hostel: student.hostel
+      },
+      ticket
+    });
+  } catch (error) {
+    console.error('Checker manual entry error:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

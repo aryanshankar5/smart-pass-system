@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Pass Checker</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="checker.js" defer></script>
+</head>
+<body>
+  <div id="checker-login-screen" class="screen active">
+    <div class="login-container">
+      <div class="login-card">
+        <div class="logo-section">
+          <div class="logo-placeholder">
+            <img src="image/logo.png" alt="BIT Logo" class="logo-image" style="height: 100px; width: 100px;" />
+          </div>
+          <h1>Checker Login</h1>
+          <p>Enter the checker credentials to access the scanner.</p>
+        </div>
+
+        <div class="login-form">
+          <div class="form-group">
+            <input id="checker-username" type="text" class="form-control" placeholder="Username" />
+          </div>
+          <div class="form-group">
+            <input id="checker-password" type="password" class="form-control" placeholder="Password" />
+          </div>
+          <button class="btn btn--primary btn--full-width" onclick="checkerLogin()">Login</button>
+          <p id="checker-login-message" class="form-message"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="checker-dashboard-screen" class="screen">
+    <nav class="navbar">
+      <div class="nav-content">
+        <button class="menu-btn" onclick="toggleMenu()">
+          <div class="hamburger">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </button>
+        <div class="logo">Smart Pass Checker</div>
+        <div class="nav-logo">
+          <img src="image/logo.png" alt="BIT Logo" />
+        </div>
+      </div>
+      <div id="nav-menu" class="nav-menu">
+        <button class="menu-item" onclick="checkerLogout()">Logout</button>
+        <a class="menu-item" href="index.html">Student Portal</a>
+      </div>
+    </nav>
+
+    <main class="dashboard-content">
+      <div class="card">
+        <h2>QR Scan & Verify</h2>
+        <p>Scan the student QR or paste the QR payload to verify the meal pass.</p>
+
+        <div class="scanner-box">
+          <div id="reader" style="width: 320px; margin: 15px auto;"></div>
+          <div class="scanner-actions">
+            <button class="btn btn--primary" onclick="startCameraScanner()">Start Camera Scanner</button>
+            <button class="btn btn--outline" onclick="stopCameraScanner()">Stop Scanner</button>
+          </div>
+        </div>
+
+        <textarea id="qr-input" class="form-control" rows="6" placeholder="Paste QR data here"></textarea>
+        <div class="btn-row">
+          <button class="btn btn--primary" onclick="verifyQRFromInput()">Verify QR</button>
+          <button class="btn btn--secondary" onclick="clearQrInput()">Clear</button>
+        </div>
+
+        <div id="qr-result" class="verification-result"></div>
+      </div>
+
+      <div class="card">
+        <h2>Manual Meal Entry</h2>
+        <p>Use this when a student does not have a QR code.</p>
+
+        <div class="form-group">
+          <label for="manual-roll-no">Roll No</label>
+          <input id="manual-roll-no" type="text" class="form-control" placeholder="Enter student roll number" />
+        </div>
+
+        <div class="form-group">
+          <label for="manual-meal-slot">Meal Opted</label>
+          <select id="manual-meal-slot" class="form-control">
+            <option value="">Select meal slot</option>
+            <option value="Breakfast">Breakfast</option>
+            <option value="Lunch">Lunch</option>
+            <option value="Snacks">Snacks</option>
+            <option value="Dinner">Dinner</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="manual-email">Student Email (optional)</label>
+          <input id="manual-email" type="email" class="form-control" placeholder="Enter student email if available" />
+        </div>
+
+        <button class="btn btn--primary btn--full-width" onclick="submitManualEntry()">Record Manual Meal</button>
+        <div id="manual-result" class="verification-result"></div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
