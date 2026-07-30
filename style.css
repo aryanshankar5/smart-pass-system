@@ -970,11 +970,19 @@ select.form-control {
 }
 
 .top-right-logo {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  display: block;
+  border-radius: 10px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.logo-admin-page {
   width: 100%;
   height: 100%;
   object-fit: contain;
   display: block;
-  border-radius: 10px;
 }
 
 .nav-spacer {
