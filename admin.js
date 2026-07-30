@@ -1,5 +1,5 @@
-const API_BASE_URL = 'https://bitmesspass-backend.onrender.com';
-//const API_BASE_URL = 'http://localhost:3001';
+//onst API_BASE_URL = 'https://bitmesspass-backend.onrender.com';
+const API_BASE_URL = 'http://localhost:3001';
 
 let allAccessLogs = [];
 let allMealReports = [];
@@ -11,6 +11,32 @@ let adminUser = JSON.parse(localStorage.getItem('smartpass_admin_user') || 'null
 let allStudents = [];
 let currentVerifiedQR = null;
 let allLoginLogs = [];
+
+function toggleSidebar() {
+  const sidebar = document.querySelector('.admin-sidebar');
+  if (!sidebar) return;
+
+  const isCollapsed = sidebar.classList.toggle('collapsed');
+  const toggleButton = document.querySelector('.sidebar-toggle');
+
+  if (toggleButton) {
+    toggleButton.setAttribute('aria-expanded', String(!isCollapsed));
+  }
+
+  document.querySelectorAll('.sidebar-item').forEach((item) => {
+    item.classList.toggle('compact', isCollapsed);
+  });
+
+  document.querySelectorAll('.sidebar-label').forEach((label) => {
+    label.style.opacity = isCollapsed ? '0' : '1';
+    label.style.visibility = isCollapsed ? 'hidden' : 'visible';
+  });
+
+  const footer = document.querySelector('.sidebar-footer');
+  if (footer) {
+    footer.classList.toggle('compact', isCollapsed);
+  }
+}
 
 function showScreen(screenId) {
   const screens = document.querySelectorAll('.screen');

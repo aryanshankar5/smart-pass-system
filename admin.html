@@ -11,14 +11,11 @@
 <body>
   <div id="admin-login-page" class="screen full-height active">
     <div class="login-container">
-      <img src="image/logo.png" alt="Logo" class="top-right-logo login-top-right" />
       <div class="login-card">
         <div class="logo-section">
           <div class="logo-placeholder admin-logo">
-            <div class="logo-text">ADMIN</div>
+            <img src="image/logo.png" alt="Logo" class="top-right-logo header-logo" />
           </div>
-          <h1>Smart Pass Admin Portal</h1>
-          <p>BIT Mesra Mess Verification System</p>
         </div>
 
         <div class="login-form">
@@ -88,29 +85,53 @@
   <div id="admin-dashboard-page" class="screen full-height">
     <nav class="navbar admin-nav">
       <div class="nav-content">
-        <div class="logo">Smart Pass Admin</div>
-        <div style="display:flex;align-items:center;gap:12px;">
-          <button class="btn btn--outline btn--sm" onclick="adminLogout()">Logout</button>
-          <img src="image/logo.png" alt="Logo" class="top-right-logo" />
+        <div class="nav-brand-strip">
+          <button class="sidebar-toggle top-strip-toggle" onclick="toggleSidebar()" aria-expanded="true" aria-label="Toggle navigation">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <div class="top-strip-title">Smart Pass Admin</div>
         </div>
+        <img src="image/logo.png" alt="Logo" class="top-right-logo header-logo" />
       </div>
     </nav>
 
     <div class="admin-content">
       <div class="admin-layout">
         <aside class="admin-sidebar">
-          <div class="sidebar-header">Admin</div>
           <nav class="sidebar-nav">
-            <button class="sidebar-item active" data-target="admin-home-page" onclick="showScreen('admin-home-page')">Home</button>
-            <button class="sidebar-item" data-target="admin-verify-page" onclick="showScreen('admin-verify-page')">Verify</button>
-            <button class="sidebar-item" data-target="admin-login-logs-page" onclick="showScreen('admin-login-logs-page')">Login Logs</button>
-            <button class="sidebar-item" data-target="admin-location-logs-page" onclick="showScreen('admin-location-logs-page')">Location Logs</button>
-            <button class="sidebar-item" data-target="admin-meal-reports-page" onclick="showScreen('admin-meal-reports-page')">Meal Reports</button>
-            <button class="sidebar-item" data-target="admin-access-logs-page" onclick="showScreen('admin-access-logs-page')">Access Logs</button>
-            <button class="sidebar-item" data-target="admin-students-page" onclick="showScreen('admin-students-page')">Students</button>
-            <button class="sidebar-item" data-target="admin-export-page" onclick="showScreen('admin-export-page')">Export</button>
-            <button class="sidebar-item" data-target="admin-add-student-page" onclick="showScreen('admin-add-student-page')">Add Student</button>
+            <button class="sidebar-item active" data-target="admin-home-page" onclick="showScreen('admin-home-page')">
+              <span class="sidebar-label">Home</span>
+            </button>
+            <button class="sidebar-item" data-target="admin-verify-page" onclick="showScreen('admin-verify-page')">
+              <span class="sidebar-label">Verify</span>
+            </button>
+            <button class="sidebar-item" data-target="admin-login-logs-page" onclick="showScreen('admin-login-logs-page')">
+              <span class="sidebar-label">Login Logs</span>
+            </button>
+            <button class="sidebar-item" data-target="admin-location-logs-page" onclick="showScreen('admin-location-logs-page')">
+              <span class="sidebar-label">Location Logs</span>
+            </button>
+            <button class="sidebar-item" data-target="admin-meal-reports-page" onclick="showScreen('admin-meal-reports-page')">
+              <span class="sidebar-label">Meal Reports</span>
+            </button>
+            <button class="sidebar-item" data-target="admin-access-logs-page" onclick="showScreen('admin-access-logs-page')">
+              <span class="sidebar-label">Access Logs</span>
+            </button>
+            <button class="sidebar-item" data-target="admin-students-page" onclick="showScreen('admin-students-page')">
+              <span class="sidebar-label">Students</span>
+            </button>
+            <button class="sidebar-item" data-target="admin-export-page" onclick="showScreen('admin-export-page')">
+              <span class="sidebar-label">Export</span>
+            </button>
+            <button class="sidebar-item" data-target="admin-add-student-page" onclick="showScreen('admin-add-student-page')">
+              <span class="sidebar-label">Add Student</span>
+            </button>
           </nav>
+          <div class="sidebar-footer">
+            <button class="sidebar-logout" onclick="adminLogout()">Logout</button>
+          </div>
         </aside>
 
         <main class="admin-main">

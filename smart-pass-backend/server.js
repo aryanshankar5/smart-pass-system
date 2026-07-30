@@ -11,25 +11,34 @@ const XLSX = require('xlsx');
 const app = express();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-app.use(cors({
+const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = [
       'http://localhost:5500',
       'http://127.0.0.1:5500',
+      'http://127.1.1.1:5500',
       'https://bitmesspass.netlify.app',
       'null'
     ];
 
-    if (!origin || allowedOrigins.includes(origin)) {
+    const isAllowedLocalOrigin = /^https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|127\.1\.1\.1)(?::\d+)?$/.test(origin || '');
+
+    if (!origin || allowedOrigins.includes(origin) || isAllowedLocalOrigin) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: '*',
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
+
+app.options(/(.*)/, cors(corsOptions), (req, res) => {
+  res.sendStatus(204);
+});
 
 app.use(express.json());
 
