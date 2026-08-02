@@ -58,7 +58,7 @@
     <main class="dashboard-content">
       <div class="card">
         <h2>QR Scan & Verify</h2>
-        <p>Scan the student QR or paste the QR payload to verify the meal pass.</p>
+        <p class="pcheck">Scan the student QR or paste the QR payload to verify the meal pass.</p>
 
         <div class="scanner-box">
           <div id="reader" style="width: 320px; margin: 15px auto;"></div>
@@ -79,15 +79,13 @@
 
       <div class="card">
         <h2>Manual Meal Entry</h2>
-        <p>Use this when a student does not have a QR code.</p>
+        <p class="pcheck">Use only this when a student does not have a QR code.</p>
 
         <div class="form-group">
-          <label for="manual-roll-no">Roll No</label>
           <input id="manual-roll-no" type="text" class="form-control" placeholder="Enter student roll number" />
         </div>
 
         <div class="form-group">
-          <label for="manual-meal-slot">Meal Opted</label>
           <select id="manual-meal-slot" class="form-control">
             <option value="">Select meal slot</option>
             <option value="Breakfast">Breakfast</option>
@@ -98,7 +96,6 @@
         </div>
 
         <div class="form-group">
-          <label for="manual-email">Student Email (optional)</label>
           <input id="manual-email" type="email" class="form-control" placeholder="Enter student email if available" />
         </div>
 

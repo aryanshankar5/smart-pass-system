@@ -1,5 +1,5 @@
-const API_BASE_URL = 'https://bitmesspass-backend.onrender.com';
-//const API_BASE_URL = 'http://localhost:3001';
+//const API_BASE_URL = 'https://bitmesspass-backend.onrender.com';
+const API_BASE_URL = 'http://localhost:3001';
 
 let allAccessLogs = [];
 let allMealReports = [];
@@ -11,6 +11,7 @@ let adminUser = JSON.parse(localStorage.getItem('smartpass_admin_user') || 'null
 let allStudents = [];
 let currentVerifiedQR = null;
 let allLoginLogs = [];
+let loginLogSortState = { key: 'createdAt', direction: 'desc' };
 
 function toggleSidebar() {
   const sidebar = document.querySelector('.admin-sidebar');
@@ -210,16 +211,15 @@ function renderStudentsTable(students) {
       <tr>
         <td>${student.rollNo}</td>
         <td>${student.name}</td>
-        <td>${student.email}</td>
         <td>Hostel ${student.hostel}</td>
         <td><span class="${statusClass}">${student.accessStatus}</span></td>
         <td>${student.deviceLocked ? 'Locked' : 'Not Locked'}</td>
         <td>
-          <button class="btn btn--sm btn--outline" onclick="openAccessModal(${student.id}, '${student.name}', '${student.accessStatus}')">
+          <button class="btn btn--sm btn--outline" onclick="openAccessModal(${student.id}, '${student.name}', '${student.accessStatus}', '${student.hostel}')">
             Manage Access
-            </button>
+          </button>
 
-            <button class="btn btn--sm btn--secondary" onclick="resetDevice(${student.id})">
+          <button class="btn btn--sm btn--secondary" onclick="resetDevice(${student.id})">
             Reset Device
           </button>
         </td>
@@ -234,7 +234,6 @@ function renderStudentsTable(students) {
           <tr>
             <th>Roll No</th>
             <th>Name</th>
-            <th>Email</th>
             <th>Hostel</th>
             <th>Access</th>
             <th>Device</th>
@@ -438,25 +437,67 @@ async function loadLoginLogs() {
 
   try {
     const status = document.getElementById('login-log-status')?.value || 'all';
-    const email = document.getElementById('login-log-email')?.value || '';
+    const search = document.getElementById('login-log-search')?.value || '';
     const fromDate = document.getElementById('login-log-from')?.value || '';
     const toDate = document.getElementById('login-log-to')?.value || '';
 
     const params = new URLSearchParams();
 
     if (status) params.append('status', status);
-    if (email) params.append('email', email);
+    if (search) params.append('search', search);
     if (fromDate) params.append('fromDate', fromDate);
     if (toDate) params.append('toDate', toDate + 'T23:59:59');
 
     const result = await apiCall(`/api/admin/login-logs?${params.toString()}`);
 
-    allLoginLogs = result.logs;
+    allLoginLogs = result.logs || [];
     renderLoginLogs(allLoginLogs);
 
   } catch (error) {
     container.innerHTML = `<p class="error-text">Failed to load login logs: ${error.message}</p>`;
   }
+}
+
+function getLoginLogSortValue(log, key) {
+  if (key === 'createdAt') {
+    return new Date(log.createdAt || 0).getTime();
+  }
+
+  if (key === 'hostel') {
+    const hostelValue = log.hostel ?? log.hostelNumber ?? '';
+    const numericValue = Number(hostelValue);
+    return Number.isNaN(numericValue) ? String(hostelValue).toLowerCase() : numericValue;
+  }
+
+  if (key === 'name') {
+    return String(log.studentName || '').toLowerCase();
+  }
+
+  if (key === 'rollNo') {
+    return String(log.rollNo || '').toLowerCase();
+  }
+
+  return '';
+}
+
+function compareLoginLogs(a, b, key, direction) {
+  const aValue = getLoginLogSortValue(a, key);
+  const bValue = getLoginLogSortValue(b, key);
+
+  if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+  if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+  return 0;
+}
+
+function sortLoginLogs(key, direction = null) {
+  if (loginLogSortState.key === key && direction === null) {
+    loginLogSortState.direction = loginLogSortState.direction === 'asc' ? 'desc' : 'asc';
+  } else {
+    loginLogSortState.key = key;
+    loginLogSortState.direction = direction || 'asc';
+  }
+
+  renderLoginLogs(allLoginLogs);
 }
 
 function renderLoginLogs(logs) {
@@ -467,22 +508,25 @@ function renderLoginLogs(logs) {
     return;
   }
 
-  const rows = logs.map(log => {
+  const sortedLogs = [...logs].sort((a, b) => compareLoginLogs(a, b, loginLogSortState.key, loginLogSortState.direction));
+  const rows = sortedLogs.map(log => {
     const statusClass = log.loginStatus === 'success' ? 'status-active' : 'status-revoked';
-    const dateTime = new Date(log.createdAt).toLocaleString();
+    const createdAt = log.createdAt ? new Date(log.createdAt) : null;
+    const displayDate = createdAt ? createdAt.toLocaleDateString() : '-';
+    const displayTime = createdAt ? createdAt.toLocaleTimeString() : '-';
+    const hostelValue = log.hostel ?? log.hostelNumber ?? '-';
+    const ipValue = log.ipAddress || '-';
 
     return `
       <tr>
-        <td>${dateTime}</td>
+        <td>${displayDate}</td>
+        <td>${displayTime}</td>
+        <td>${hostelValue}</td>
         <td>${log.studentName || '-'}</td>
         <td>${log.rollNo || '-'}</td>
-        <td>${log.email || '-'}</td>
         <td><span class="${statusClass}">${log.loginStatus}</span></td>
         <td>${log.reason || '-'}</td>
-        <td>${log.ipAddress || '-'}</td>
-        <td title="${log.userAgent || ''}">
-          ${log.deviceId ? log.deviceId.substring(0, 20) + '...' : '-'}
-        </td>
+        <td>${ipValue}</td>
       </tr>
     `;
   }).join('');
@@ -492,14 +536,34 @@ function renderLoginLogs(logs) {
       <table class="admin-table">
         <thead>
           <tr>
+            <th>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span>Date</span>
+                <button type="button" onclick="sortLoginLogs('createdAt')" style="font-size:11px; padding:2px 4px; border:none; background:transparent; cursor:pointer;" aria-label="Sort date">↕</button>
+              </div>
+            </th>
             <th>Time</th>
-            <th>Student</th>
-            <th>Roll No</th>
-            <th>Email</th>
+            <th>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span>Hostel No</span>
+                <button type="button" onclick="sortLoginLogs('hostel')" style="font-size:11px; padding:2px 4px; border:none; background:transparent; cursor:pointer;" aria-label="Sort hostel">↕</button>
+              </div>
+            </th>
+            <th>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span>Name</span>
+                <button type="button" onclick="sortLoginLogs('name')" style="font-size:11px; padding:2px 4px; border:none; background:transparent; cursor:pointer;" aria-label="Sort name">↕</button>
+              </div>
+            </th>
+            <th>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span>Roll No</span>
+                <button type="button" onclick="sortLoginLogs('rollNo')" style="font-size:11px; padding:2px 4px; border:none; background:transparent; cursor:pointer;" aria-label="Sort roll no">↕</button>
+              </div>
+            </th>
             <th>Status</th>
             <th>Reason</th>
             <th>IP</th>
-            <th>Device</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -514,14 +578,14 @@ async function loadLocationLogs() {
 
   try {
     const status = document.getElementById('location-log-status')?.value || 'all';
-    const email = document.getElementById('location-log-email')?.value || '';
+    const search = document.getElementById('location-log-search')?.value || '';
     const fromDate = document.getElementById('location-log-from')?.value || '';
     const toDate = document.getElementById('location-log-to')?.value || '';
 
     const params = new URLSearchParams();
 
     if (status) params.append('status', status);
-    if (email) params.append('email', email);
+    if (search) params.append('search', search);
     if (fromDate) params.append('fromDate', fromDate);
     if (toDate) params.append('toDate', toDate + 'T23:59:59');
 
@@ -546,19 +610,24 @@ function renderLocationLogs(logs) {
   const rows = logs.map(log => {
     const statusClass = log.isValid ? 'status-active' : 'status-revoked';
     const statusText = log.isValid ? 'Valid' : 'Invalid';
-    const dateTime = new Date(log.createdAt).toLocaleString();
+    const createdAt = log.createdAt ? new Date(log.createdAt) : null;
+    const displayDate = createdAt ? createdAt.toLocaleDateString() : '-';
+    const displayTime = createdAt ? createdAt.toLocaleTimeString() : '-';
+    const hostelNumber = log.hostelNumber != null ? log.hostelNumber : '-';
+    const locationLink = log.latitude != null && log.longitude != null
+      ? `https://www.google.com/maps/search/${log.latitude},${log.longitude}`
+      : null;
 
     return `
       <tr>
-        <td>${dateTime}</td>
+        <td>${displayDate}</td>
+        <td>${displayTime}</td>
+        <td>${hostelNumber}</td>
         <td>${log.studentName || '-'}</td>
         <td>${log.rollNo || '-'}</td>
-        <td>${log.email || '-'}</td>
         <td><span class="${statusClass}">${statusText}</span></td>
-        <td>${log.distanceFromMess ?? '-'} m</td>
-        <td>${log.accuracy ? Math.round(log.accuracy) + ' m' : '-'}</td>
-        <td>${log.latitude?.toFixed(6) || '-'}</td>
-        <td>${log.longitude?.toFixed(6) || '-'}</td>
+        <td>${log.distanceFromMess != null ? `${log.distanceFromMess} m` : '-'}</td>
+        <td>${locationLink ? `<a href="${locationLink}" target="_blank" rel="noopener">View Location</a>` : '-'}</td>
         <td>${log.reason || '-'}</td>
       </tr>
     `;
@@ -569,15 +638,14 @@ function renderLocationLogs(logs) {
       <table class="admin-table">
         <thead>
           <tr>
+            <th>Date</th>
             <th>Time</th>
-            <th>Student</th>
+            <th>Hostel No</th>
+            <th>Student Name</th>
             <th>Roll No</th>
-            <th>Email</th>
             <th>Status</th>
             <th>Distance</th>
-            <th>Accuracy</th>
-            <th>Latitude</th>
-            <th>Longitude</th>
+            <th>View Location</th>
             <th>Reason</th>
           </tr>
         </thead>
@@ -658,7 +726,7 @@ async function loadMealReports() {
   try {
     const mealSlot = document.getElementById('meal-report-slot')?.value || 'all';
     const status = document.getElementById('meal-report-status')?.value || 'all';
-    const email = document.getElementById('meal-report-email')?.value || '';
+    const search = document.getElementById('meal-report-search')?.value || '';
     const fromDate = document.getElementById('meal-report-from')?.value || '';
     const toDate = document.getElementById('meal-report-to')?.value || '';
 
@@ -666,7 +734,7 @@ async function loadMealReports() {
 
     if (mealSlot) params.append('mealSlot', mealSlot);
     if (status) params.append('status', status);
-    if (email) params.append('email', email);
+    if (search) params.append('search', search);
     if (fromDate) params.append('fromDate', fromDate);
     if (toDate) params.append('toDate', toDate);
 
@@ -697,7 +765,6 @@ function renderMealReports(reports) {
         <td>${report.mealSlot || '-'}</td>
         <td>${report.studentName || '-'}</td>
         <td>${report.rollNo || '-'}</td>
-        <td>${report.email || '-'}</td>
         <td>Hostel ${report.hostel || '-'}</td>
         <td><span class="${statusClass}">${report.status}</span></td>
         <td>${report.generatedAt ? new Date(report.generatedAt).toLocaleString() : '-'}</td>
@@ -716,7 +783,6 @@ function renderMealReports(reports) {
             <th>Meal</th>
             <th>Student</th>
             <th>Roll No</th>
-            <th>Email</th>
             <th>Hostel</th>
             <th>Status</th>
             <th>Generated</th>
@@ -730,16 +796,20 @@ function renderMealReports(reports) {
   `;
 }
 
-function openAccessModal(studentId, studentName, currentStatus) {
+function openAccessModal(studentId, studentName, currentStatus, hostelNumber = '') {
   document.getElementById('access-student-id').value = studentId;
   document.getElementById('access-student-name').textContent =
-    `Student: ${studentName} | Current Status: ${currentStatus}`;
+    `Student: ${studentName}`;
+  document.getElementById('access-student-roll').textContent =
+    `Roll No: ${studentId}`;
+  document.getElementById('access-student-hostel').textContent =
+    `Hostel: ${hostelNumber || 'N/A'}`;
 
   document.getElementById('access-action').value =
     currentStatus === 'active' ? 'revoke' : 'allow';
 
   document.getElementById('access-duration').value = 'permanent';
-  document.getElementById('access-custom-until').value = '';
+  updateAccessUntil();
   document.getElementById('access-reason').value = '';
 
   document.getElementById('access-modal').classList.remove('hidden');
@@ -749,6 +819,34 @@ function closeAccessModal() {
   document.getElementById('access-modal').classList.add('hidden');
 }
 
+function updateAccessUntil() {
+  const duration = document.getElementById('access-duration').value;
+  const untilInput = document.getElementById('access-custom-until');
+
+  if (duration === 'custom') {
+    untilInput.removeAttribute('readonly');
+    untilInput.value = '';
+    return;
+  }
+
+  untilInput.setAttribute('readonly', 'true');
+
+  if (duration === 'permanent') {
+    untilInput.value = '';
+    return;
+  }
+
+  const days = Number(duration);
+  if (Number.isNaN(days) || days <= 0) {
+    untilInput.value = '';
+    return;
+  }
+
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  untilInput.value = date.toISOString().split('T')[0];
+}
+
 async function submitAccessChange() {
   const studentId = document.getElementById('access-student-id').value;
   const action = document.getElementById('access-action').value;
@@ -756,17 +854,12 @@ async function submitAccessChange() {
   const customUntil = document.getElementById('access-custom-until').value;
   const reason = document.getElementById('access-reason').value.trim();
 
-  if (!reason) {
-    alert('Please enter reason for access change.');
-    return;
-  }
-
   try {
     const result = await apiCall(`/api/admin/students/${studentId}/manage-access`, 'POST', {
       action,
       duration,
       customUntil,
-      reason
+      reason: reason || null
     });
 
     alert('✅ ' + result.message);
@@ -788,14 +881,14 @@ async function loadAccessLogs() {
 
   try {
     const status = document.getElementById('access-log-status')?.value || 'all';
-    const email = document.getElementById('access-log-email')?.value || '';
+    const search = document.getElementById('access-log-search')?.value || '';
     const fromDate = document.getElementById('access-log-from')?.value || '';
     const toDate = document.getElementById('access-log-to')?.value || '';
 
     const params = new URLSearchParams();
 
     if (status) params.append('status', status);
-    if (email) params.append('email', email);
+    if (search) params.append('search', search);
     if (fromDate) params.append('fromDate', fromDate);
     if (toDate) params.append('toDate', toDate + 'T23:59:59');
 
@@ -825,7 +918,6 @@ function renderAccessLogs(logs) {
         <td>${new Date(log.createdAt).toLocaleString()}</td>
         <td>${log.studentName || '-'}</td>
         <td>${log.rollNo || '-'}</td>
-        <td>${log.email || '-'}</td>
         <td>${log.oldStatus || '-'}</td>
         <td><span class="${statusClass}">${log.newStatus}</span></td>
         <td>${log.accessUntil ? new Date(log.accessUntil).toLocaleString() : 'Permanent'}</td>
@@ -843,7 +935,6 @@ function renderAccessLogs(logs) {
             <th>Time</th>
             <th>Student</th>
             <th>Roll No</th>
-            <th>Email</th>
             <th>Old Status</th>
             <th>New Status</th>
             <th>Until</th>
@@ -860,8 +951,9 @@ function renderAccessLogs(logs) {
 async function addStudentManually() {
   const rollNo = document.getElementById('new-roll-no').value.trim();
   const studentName = document.getElementById('new-student-name').value.trim();
-  const email = document.getElementById('new-student-email').value.trim();
   const hostel = document.getElementById('new-student-hostel').value.trim();
+  const roomNumber = document.getElementById('new-student-room').value.trim();
+  const email = document.getElementById('new-student-email').value.trim();
   const message = document.getElementById('add-student-message');
 
   message.textContent = '';
@@ -870,16 +962,18 @@ async function addStudentManually() {
     const result = await apiCall('/api/admin/students/add', 'POST', {
       rollNo,
       studentName,
-      email,
-      hostel
+      hostel,
+      roomNumber,
+      email: email || null
     });
 
     message.textContent = '✅ ' + result.message;
 
     document.getElementById('new-roll-no').value = '';
     document.getElementById('new-student-name').value = '';
-    document.getElementById('new-student-email').value = '';
     document.getElementById('new-student-hostel').value = '';
+    document.getElementById('new-student-room').value = '';
+    document.getElementById('new-student-email').value = '';
 
     await loadStudents();
     await loadDashboardStats();

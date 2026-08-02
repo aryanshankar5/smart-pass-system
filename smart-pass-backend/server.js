@@ -9,6 +9,7 @@ const bcrypt = require('bcryptjs');
 const XLSX = require('xlsx');
 
 const app = express();
+app.set('trust proxy', true);
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const corsOptions = {
@@ -356,9 +357,11 @@ async function saveLoginLog({
 }) {
   try {
     const ipAddress =
-      req.headers['x-forwarded-for'] ||
-      req.socket?.remoteAddress ||
+      (req.headers['x-forwarded-for'] || '')
+        .split(',')[0]
+        .trim() ||
       req.ip ||
+      req.socket?.remoteAddress ||
       null;
 
     const userAgent = req.headers['user-agent'] || null;
@@ -742,24 +745,27 @@ app.get('/api/admin/login-logs', async (req, res) => {
   try {
     const {
       status,
-      email,
+      search,
       fromDate,
       toDate
     } = req.query;
 
     let query = `
       SELECT 
-        id,
-        email,
-        roll_no AS "rollNo",
-        student_name AS "studentName",
-        login_status AS "loginStatus",
-        reason,
-        device_id AS "deviceId",
-        ip_address AS "ipAddress",
-        user_agent AS "userAgent",
-        created_at AS "createdAt"
+        login_logs.id,
+        login_logs.email,
+        login_logs.roll_no AS "rollNo",
+        login_logs.student_name AS "studentName",
+        login_logs.login_status AS "loginStatus",
+        login_logs.reason,
+        login_logs.ip_address AS "ipAddress",
+        login_logs.user_agent AS "userAgent",
+        login_logs.created_at AS "createdAt",
+        students.hostel AS hostel
       FROM login_logs
+      LEFT JOIN students
+        ON students.email = login_logs.email
+        OR students.roll_no = login_logs.roll_no
       WHERE 1 = 1
     `;
 
@@ -767,30 +773,35 @@ app.get('/api/admin/login-logs', async (req, res) => {
     let index = 1;
 
     if (status && status !== 'all') {
-      query += ` AND login_status = $${index}`;
+      query += ` AND login_logs.login_status = $${index}`;
       values.push(status);
       index++;
     }
 
-    if (email) {
-      query += ` AND LOWER(email) LIKE LOWER($${index})`;
-      values.push(`%${email}%`);
-      index++;
+    if (search) {
+      query += ` AND (
+        LOWER(COALESCE(login_logs.student_name, '')) LIKE LOWER($${index})
+        OR LOWER(COALESCE(login_logs.roll_no, '')) LIKE LOWER($${index + 1})
+        OR LOWER(COALESCE(students.hostel::text, '')) LIKE LOWER($${index + 2})
+      )`;
+      const searchTerm = `%${search}%`;
+      values.push(searchTerm, searchTerm, searchTerm);
+      index += 3;
     }
 
     if (fromDate) {
-      query += ` AND created_at >= $${index}`;
+      query += ` AND login_logs.created_at >= $${index}`;
       values.push(fromDate);
       index++;
     }
 
     if (toDate) {
-      query += ` AND created_at <= $${index}`;
+      query += ` AND login_logs.created_at <= $${index}`;
       values.push(toDate);
       index++;
     }
 
-    query += ` ORDER BY created_at DESC LIMIT 200`;
+    query += ` ORDER BY login_logs.created_at DESC LIMIT 200`;
 
     const result = await pool.query(query, values);
 
@@ -1655,22 +1666,26 @@ app.post('/api/admin/create-default-admin', async (req, res) => {
 
 app.get('/api/admin/location-logs', async (req, res) => {
   try {
-    const { status, email, fromDate, toDate } = req.query;
+    const { status, search, fromDate, toDate } = req.query;
 
     let query = `
       SELECT
-        id,
-        email,
-        roll_no AS "rollNo",
-        student_name AS "studentName",
-        latitude,
-        longitude,
-        accuracy,
-        distance_from_mess AS "distanceFromMess",
-        is_valid AS "isValid",
-        reason,
-        created_at AS "createdAt"
-      FROM location_logs
+        ll.id,
+        ll.email,
+        ll.roll_no AS "rollNo",
+        COALESCE(NULLIF(ll.student_name, ''), s.student_name) AS "studentName",
+        s.hostel AS "hostelNumber",
+        ll.latitude,
+        ll.longitude,
+        ll.accuracy,
+        ll.distance_from_mess AS "distanceFromMess",
+        ll.is_valid AS "isValid",
+        ll.reason,
+        ll.created_at AS "createdAt"
+      FROM location_logs ll
+      LEFT JOIN students s
+        ON LOWER(s.email) = LOWER(ll.email)
+        OR s.roll_no = ll.roll_no
       WHERE 1 = 1
     `;
 
@@ -1678,32 +1693,36 @@ app.get('/api/admin/location-logs', async (req, res) => {
     let index = 1;
 
     if (status === 'valid') {
-      query += ` AND is_valid = true`;
+        query += ` AND ll.is_valid = true`;
     }
 
     if (status === 'invalid') {
-      query += ` AND is_valid = false`;
+        query += ` AND ll.is_valid = false`;
     }
 
-    if (email) {
-      query += ` AND LOWER(email) LIKE LOWER($${index})`;
-      values.push(`%${email}%`);
+    if (search) {
+      query += ` AND (
+        LOWER(COALESCE(ll.student_name, '')) LIKE LOWER($${index})
+        OR LOWER(COALESCE(ll.roll_no, '')) LIKE LOWER($${index})
+        OR LOWER(COALESCE(s.hostel::text, '')) LIKE LOWER($${index})
+      )`;
+      values.push(`%${search}%`);
       index++;
     }
 
     if (fromDate) {
-      query += ` AND created_at >= $${index}`;
+      query += ` AND ll.created_at >= $${index}`;
       values.push(fromDate);
       index++;
     }
 
     if (toDate) {
-      query += ` AND created_at <= $${index}`;
+      query += ` AND ll.created_at <= $${index}`;
       values.push(toDate);
       index++;
     }
 
-    query += ` ORDER BY created_at DESC LIMIT 200`;
+    query += ` ORDER BY ll.created_at DESC LIMIT 200`;
 
     const result = await pool.query(query, values);
 
@@ -1830,7 +1849,7 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
 
 app.get('/api/admin/meal-reports', async (req, res) => {
   try {
-    const { mealSlot, status, email, fromDate, toDate } = req.query;
+    const { mealSlot, status, search, fromDate, toDate } = req.query;
 
     let query = `
       SELECT
@@ -1867,9 +1886,13 @@ app.get('/api/admin/meal-reports', async (req, res) => {
       index++;
     }
 
-    if (email) {
-      query += ` AND LOWER(email) LIKE LOWER($${index})`;
-      values.push(`%${email}%`);
+    if (search) {
+      query += ` AND (
+        LOWER(COALESCE(student_name, '')) LIKE LOWER($${index})
+        OR LOWER(COALESCE(roll_no, '')) LIKE LOWER($${index})
+        OR LOWER(COALESCE(hostel::text, '')) LIKE LOWER($${index})
+      )`;
+      values.push(`%${search}%`);
       index++;
     }
 
@@ -2009,7 +2032,7 @@ app.post('/api/admin/students/:id/manage-access', async (req, res) => {
 
 app.get('/api/admin/access-logs', async (req, res) => {
   try {
-    const { email, status, fromDate, toDate } = req.query;
+    const { search, status, fromDate, toDate } = req.query;
 
     let query = `
       SELECT
@@ -2033,9 +2056,13 @@ app.get('/api/admin/access-logs', async (req, res) => {
     const values = [];
     let index = 1;
 
-    if (email) {
-      query += ` AND LOWER(al.email) LIKE LOWER($${index})`;
-      values.push(`%${email}%`);
+    if (search) {
+      query += ` AND (
+        LOWER(COALESCE(s.student_name, '')) LIKE LOWER($${index})
+        OR LOWER(COALESCE(al.roll_no, '')) LIKE LOWER($${index})
+        OR LOWER(COALESCE(s.hostel::text, '')) LIKE LOWER($${index})
+      )`;
+      values.push(`%${search}%`);
       index++;
     }
 
@@ -2081,17 +2108,20 @@ app.post('/api/admin/students/add', async (req, res) => {
       rollNo,
       studentName,
       email,
-      hostel
+      hostel,
+      roomNumber
     } = req.body;
 
-    if (!rollNo || !studentName || !email || !hostel) {
+    if (!rollNo || !studentName || !hostel || !roomNumber) {
       return res.status(400).json({
         success: false,
-        message: 'Roll no, student name, email and hostel are required'
+        message: 'Roll no, student name, hostel and room number are required'
       });
     }
 
-    if (!email.toLowerCase().endsWith('@bitmesra.ac.in')) {
+    const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
+
+    if (normalizedEmail && !normalizedEmail.endsWith('@bitmesra.ac.in')) {
       return res.status(400).json({
         success: false,
         message: 'Only BIT Mesra email is allowed'
@@ -2105,16 +2135,18 @@ app.post('/api/admin/students/add', async (req, res) => {
         student_name,
         email,
         hostel,
+        room_number,
         access_status
       )
-      VALUES ($1,$2,$3,$4,'active')
-      RETURNING id, roll_no, student_name, email, hostel, access_status
+      VALUES ($1,$2,$3,$4,$5,'active')
+      RETURNING id, roll_no, student_name, email, hostel, room_number, access_status
       `,
       [
-        rollNo.trim(),
-        studentName.trim(),
-        email.trim().toLowerCase(),
-        parseInt(hostel)
+        String(rollNo).trim(),
+        String(studentName).trim(),
+        normalizedEmail,
+        parseInt(hostel, 10),
+        String(roomNumber).trim()
       ]
     );
 
@@ -2192,17 +2224,20 @@ app.get('/api/admin/export/login-logs.csv', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        created_at,
-        student_name,
-        roll_no,
-        email,
-        login_status,
-        reason,
-        device_id,
-        ip_address,
-        user_agent
+        login_logs.created_at,
+        login_logs.student_name,
+        login_logs.roll_no,
+        login_logs.email,
+        students.hostel,
+        login_logs.login_status,
+        login_logs.reason,
+        login_logs.ip_address,
+        login_logs.user_agent
       FROM login_logs
-      ORDER BY created_at DESC
+      LEFT JOIN students
+        ON students.email = login_logs.email
+        OR students.roll_no = login_logs.roll_no
+      ORDER BY login_logs.created_at DESC
     `);
 
     sendCSV(res, 'login_logs.csv', result.rows);

@@ -360,6 +360,10 @@ p {
   margin: 0 0 var(--space-16) 0;
 }
 
+.pcheck {
+  margin: var(--space-8) 0 var(--space-20) 0;
+}
+
 a {
   color: var(--color-primary);
   text-decoration: none;
@@ -1027,14 +1031,13 @@ select.form-control {
 /* Admin dashboard layout */
 .admin-layout {
   display: flex;
-  gap: 16px;
   margin: 0;
   align-items: flex-start;
 }
 
 .admin-sidebar {
   width: 250px;
-  min-width: 250px;
+  min-width: 200px;
   background: linear-gradient(180deg, var(--color-primary-navy), #0b2a47);
   color: var(--color-white);
  
@@ -1235,7 +1238,13 @@ select.form-control {
 }
 
 /* Dashboard Content */
-.dashboard-content,
+.dashboard-content {
+    margin: 0 auto;
+    background-color: var(--color-primary-bg);
+    min-height: calc(100vh - 60px);
+    padding: 20px;
+}
+
 .admin-content {
     margin: 0 auto;
     background-color: var(--color-primary-bg);
@@ -1846,7 +1855,7 @@ select.form-control {
 }
 
 .modal-header h3 {
-    color: var(--color-primary-navy);
+    color: #ffffff;
     margin: 0;
 }
 
@@ -2042,6 +2051,82 @@ select.form-control {
 
 .form-group {
     margin-bottom: var(--space-16);
+}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-12);
+    flex-wrap: wrap;
+}
+
+.form-row > label {
+    min-width: 110px;
+    flex-shrink: 0;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+
+.form-row > .form-control,
+.form-row > .readonly-field {
+    flex: 1;
+}
+
+.modal-body .form-control,
+.modal-body .readonly-field,
+.profile-input {
+    background: rgba(248, 249, 250, 0.95);
+    border-color: rgba(148, 163, 184, 0.5);
+    color: var(--color-text);
+}
+
+.modal-body .form-control:focus,
+.profile-input:focus {
+    border-color: var(--color-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(33, 128, 141, 0.18);
+}
+
+.readonly-field {
+    display: block;
+    min-height: 42px;
+    padding: var(--space-8) var(--space-12);
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    border-radius: var(--radius-base);
+    background-color: rgba(248, 249, 250, 0.95);
+    color: var(--color-text);
+    line-height: 1.6;
+}
+
+.profile-form .form-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-12);
+    flex-wrap: wrap;
+}
+
+.profile-form .form-row > label {
+    min-width: 140px;
+    flex-shrink: 0;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+
+.profile-input {
+    width: 100%;
+    border-radius: var(--radius-base);
+}
+
+.modal-body input[type="date"],
+.modal-body select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--color-text-secondary) 50%),
+                      linear-gradient(135deg, var(--color-text-secondary) 50%, transparent 50%);
+    background-position: calc(100% - 20px) calc(50% - 2px), calc(100% - 14px) calc(50% - 2px);
+    background-size: 6px 6px;
+    background-repeat: no-repeat;
 }
 
 /* Status indicators */
@@ -2285,13 +2370,10 @@ select.form-control {
   background: #ffffff;
   width: 100%;
   max-width: 520px;
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-  overflow: hidden;
-}
-
-.modal-header {
-  background: #003366;
+    max-height: 90vh;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    overflow-y: auto;
   color: white;
   padding: 16px 20px;
   display: flex;
