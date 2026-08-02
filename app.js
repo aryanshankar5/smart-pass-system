@@ -1,6 +1,6 @@
 // API Configuration
-//const API_BASE_URL = 'https://bitmesspass-backend.onrender.com';
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = 'https://bitmesspass-backend.onrender.com';
+//const API_BASE_URL = 'http://localhost:3001';
 // API Helper Functions
 async function apiCall(endpoint, method = 'GET', data = null) {
     try {
@@ -48,14 +48,14 @@ const appData = {
                 {
             id: "breakfast",
             name: "Breakfast",
-            startTime: "07:30",
+            startTime: "01:30",
             endTime: "09:00",
             displayTime: "7:30 AM - 9:00 AM"
         },
         {
             id: "lunch", 
             name: "Lunch",
-            startTime: "12:30",
+            startTime: "10:30",
             endTime: "14:00", 
             displayTime: "12:30 PM - 2:00 PM"
         },
