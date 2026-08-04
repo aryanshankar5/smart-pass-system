@@ -1,6 +1,6 @@
 // API Configuration
-const API_BASE_URL = 'https://bitmesspass-backend.onrender.com';
-//const API_BASE_URL = 'http://localhost:3001';
+//const API_BASE_URL = 'https://bitmesspass-backend.onrender.com';
+const API_BASE_URL = 'http://localhost:3001';
 // API Helper Functions
 async function apiCall(endpoint, method = 'GET', data = null) {
     try {
@@ -109,63 +109,113 @@ function showScreen(screenId) {
 // Student Authentication
 let googleOAuthInitialized = false;
 
-function initializeGoogleOAuthOnce() {
-    if (googleOAuthInitialized) return true;
+// function initializeGoogleOAuthOnce() {
+//     if (googleOAuthInitialized) return true;
 
-    if (typeof google === 'undefined') {
-        console.error('Google OAuth SDK not loaded');
-        alert('Google OAuth not available. Please refresh the page.');
+//     if (typeof google === 'undefined') {
+//         console.error('Google OAuth SDK not loaded');
+//         alert('Google OAuth not available. Please refresh the page.');
+//         return false;
+//     }
+
+//     google.accounts.id.initialize({
+//         client_id: '439746768038-882bgdhrt4qmft3el25lqf5djs36bgtg.apps.googleusercontent.com',
+//         callback: handleGoogleResponse,
+//         auto_select: false,
+//         cancel_on_tap_outside: false
+//     });
+
+//     googleOAuthInitialized = true;
+//     return true;
+// }
+
+let googleClient = null;
+
+function initializeGoogleOAuthOnce() {
+    if (googleClient) return true;
+
+    if (typeof google === "undefined") {
+        alert("Google SDK not loaded.");
         return false;
     }
 
-    google.accounts.id.initialize({
-        client_id: '439746768038-882bgdhrt4qmft3el25lqf5djs36bgtg.apps.googleusercontent.com',
-        callback: handleGoogleResponse,
-        auto_select: false,
-        cancel_on_tap_outside: false
+    googleClient = google.accounts.oauth2.initCodeClient({
+    client_id: '439746768038-882bgdhrt4qmft3el25lqf5djs36bgtg.apps.googleusercontent.com',
+
+        scope: "openid email profile",
+
+        ux_mode: "popup",
+
+        callback: handleGoogleCodeResponse
     });
 
-    googleOAuthInitialized = true;
     return true;
 }
 
+// function handleStudentLogin() {
+//     console.log('Starting Google College Gmail login...');
+
+//     const ready = initializeGoogleOAuthOnce();
+//     if (!ready) return;
+
+//     google.accounts.id.prompt((notification) => {
+//         console.log('Google prompt notification:', notification);
+
+//         if (notification.isNotDisplayed()) {
+//             alert('Google sign-in could not be displayed. Please allow popups/cookies and try again.');
+//         }
+
+//         if (notification.isSkippedMoment()) {
+//             console.log('Google sign-in skipped or closed by user.');
+//         }
+//     });
+// }
+
 function handleStudentLogin() {
-    console.log('Starting Google College Gmail login...');
 
-    const ready = initializeGoogleOAuthOnce();
-    if (!ready) return;
+    if (!initializeGoogleOAuthOnce()) return;
 
-    google.accounts.id.prompt((notification) => {
-        console.log('Google prompt notification:', notification);
-
-        if (notification.isNotDisplayed()) {
-            alert('Google sign-in could not be displayed. Please allow popups/cookies and try again.');
-        }
-
-        if (notification.isSkippedMoment()) {
-            console.log('Google sign-in skipped or closed by user.');
-        }
+    googleClient.requestCode({
+        prompt: "select_account"
     });
+
 }
 
+async function handleGoogleCodeResponse(response) {
+    console.log('Google code response received:', response);
+
+    if (!response || (!response.code && !response.authorizationCode && !response.credential && !response.id_token)) {
+        console.error('No authorization code or credential returned by Google', response);
+        alert('Google sign-in failed. Please try again.');
+        return;
+    }
+
+    await handleGoogleResponse(response);
+}
 
 // New function to handle Google OAuth response
 async function handleGoogleResponse(response) {
-    console.log('Google OAuth response received');
+    console.log('Google OAuth response received:', response);
     
     try {
-        // Send the Google JWT token to our backend
-            let deviceId = localStorage.getItem('smartpass_device_id');
+        // Send the Google authorization code or ID token to our backend
+        let deviceId = localStorage.getItem('smartpass_device_id');
 
-            if (!deviceId) {
-                deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substring(2);
-                localStorage.setItem('smartpass_device_id', deviceId);
-            }
+        if (!deviceId) {
+            deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substring(2);
+            localStorage.setItem('smartpass_device_id', deviceId);
+        }
 
-            const result = await apiCall('/api/student/login', 'POST', {
-                token: response.credential,
-                deviceId: deviceId
-            });
+        const payload = {
+            deviceId: deviceId
+        };
+
+        payload.code = response.code || response.authorizationCode || response.authCode;
+        payload.token = response.credential || response.id_token;
+
+        console.log('Sending login payload:', payload);
+
+        const result = await apiCall('/api/student/login', 'POST', payload);
         
         if (result.success) {
             currentUser = {

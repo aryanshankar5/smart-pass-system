@@ -10,7 +10,11 @@ const XLSX = require('xlsx');
 
 const app = express();
 app.set('trust proxy', true);
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const client = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  'postmessage'
+);
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -404,29 +408,51 @@ app.post('/api/student/login', async (req, res) => {
 
   try {
     const body = req.body;
-    const token = body.token;
+    const token = body.token || body.credential || body.id_token;
+    const code = body.code || body.authorizationCode || body.authCode;
     deviceId = body.deviceId;
 
-    if (!token) {
+    console.log('Login request body:', body);
+
+    if (!token && !code) {
       await saveLoginLog({
         loginStatus: 'failed',
-        reason: 'No authentication token provided',
+        reason: 'No authentication token or authorization code provided',
         deviceId,
         req
       });
 
       return res.status(400).json({
         success: false,
-        message: 'No authentication token provided'
+        message: 'No authentication token or authorization code provided'
       });
+    }
+
+    let idToken = token;
+
+    if (code) {
+      if (!process.env.GOOGLE_CLIENT_SECRET) {
+        console.error('Google client secret is missing for code exchange');
+        return res.status(500).json({
+          success: false,
+          message: 'Server configuration error: missing GOOGLE_CLIENT_SECRET'
+        });
+      }
+
+      console.log('Exchanging Google authorization code for tokens...');
+      const { tokens } = await client.getToken({
+        code,
+        redirect_uri: 'postmessage'
+      });
+      idToken = tokens.id_token;
     }
 
     console.log('Verifying Google OAuth token...');
     console.log('ENV GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID);
-    console.log('Token received length:', token ? token.length : 0);
+    console.log('ID token received length:', idToken ? idToken.length : 0);
 
     const ticket = await client.verifyIdToken({
-      idToken: token,
+      idToken,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
 
