@@ -16,18 +16,18 @@
           <div class="logo-placeholder">
             <img src="image/logo.png" alt="BIT Logo" class="logo-image" style="height: 100px; width: 100px;" />
           </div>
-          <h1>Checker Login</h1>
-          <p>Enter the checker credentials to access the scanner.</p>
+          <h1 data-i18n="loginHeading">Checker Login</h1>
+          <p data-i18n="loginDesc">Enter the checker credentials to access the scanner.</p>
         </div>
 
         <div class="login-form">
           <div class="form-group">
-            <input id="checker-username" type="text" class="form-control" placeholder="Username" />
+            <input id="checker-username" type="text" class="form-control" data-i18n-placeholder="usernamePlaceholder" placeholder="Username" />
           </div>
           <div class="form-group">
-            <input id="checker-password" type="password" class="form-control" placeholder="Password" />
+            <input id="checker-password" type="password" class="form-control" data-i18n-placeholder="passwordPlaceholder" placeholder="Password" />
           </div>
-          <button class="btn btn--primary btn--full-width" onclick="checkerLogin()">Login</button>
+          <button class="btn btn--primary btn--full-width" id="login-button" onclick="checkerLogin()" data-i18n="loginButton">Login</button>
           <p id="checker-login-message" class="form-message"></p>
         </div>
       </div>
@@ -44,62 +44,63 @@
             <span></span>
           </div>
         </button>
-        <div class="logo">Smart Pass Checker</div>
+        <div class="logo" data-i18n="checkerDashboardTitle">Smart Pass Checker</div>
         <div class="nav-logo">
           <img src="image/logo.png" alt="BIT Logo" />
         </div>
       </div>
       <div id="nav-menu" class="nav-menu">
-        <button class="menu-item" onclick="checkerLogout()">Logout</button>
-        <a class="menu-item" href="index.html">Student Portal</a>
+        <button class="menu-item" id="language-toggle-btn" onclick="toggleLanguage()">हिन्दी</button>
+        <button class="menu-item" data-i18n="menuLogout" onclick="checkerLogout()">Logout</button>
+        <a class="menu-item" data-i18n="studentPortal" href="index.html">Student Portal</a>
       </div>
     </nav>
 
     <main class="dashboard-content">
       <div class="card">
-        <h2>QR Scan & Verify</h2>
-        <p class="pcheck">Scan the student QR or paste the QR payload to verify the meal pass.</p>
+        <h2 data-i18n="scanVerifyHeading">QR Scan & Verify</h2>
+        <p class="pcheck" data-i18n="scanVerifyText">Scan the student QR or paste the QR payload to verify the meal pass.</p>
 
         <div class="scanner-box">
           <div id="reader" style="width: 320px; margin: 15px auto;"></div>
           <div class="scanner-actions">
-            <button class="btn btn--primary" onclick="startCameraScanner()">Start Camera Scanner</button>
-            <button class="btn btn--outline" onclick="stopCameraScanner()">Stop Scanner</button>
+            <button class="btn btn--primary" id="start-scanner-button" onclick="startCameraScanner()" data-i18n="startScannerButton">Start Camera Scanner</button>
+            <button class="btn btn--outline" id="stop-scanner-button" onclick="stopCameraScanner()" data-i18n="stopScannerButton">Stop Scanner</button>
           </div>
         </div>
 
-        <textarea id="qr-input" class="form-control" rows="6" placeholder="Paste QR data here"></textarea>
+        <textarea id="qr-input" class="form-control" rows="6" data-i18n-placeholder="pasteQrPlaceholder" placeholder="Paste QR data here"></textarea>
         <div class="btn-row">
-          <button class="btn btn--primary" onclick="verifyQRFromInput()">Verify QR</button>
-          <button class="btn btn--secondary" onclick="clearQrInput()">Clear</button>
+          <button class="btn btn--primary" id="verify-qr-button" onclick="verifyQRFromInput()" data-i18n="verifyQRButton">Verify QR</button>
+          <button class="btn btn--secondary" id="clear-button" onclick="clearQrInput()" data-i18n="clearButton">Clear</button>
         </div>
 
         <div id="qr-result" class="verification-result"></div>
       </div>
 
       <div class="card">
-        <h2>Manual Meal Entry</h2>
-        <p class="pcheck">Use only this when a student does not have a QR code.</p>
+        <h2 data-i18n="manualMealHeading">Manual Meal Entry</h2>
+        <p class="pcheck" data-i18n="manualMealText">Use only this when a student does not have a QR code.</p>
 
         <div class="form-group">
-          <input id="manual-roll-no" type="text" class="form-control" placeholder="Enter student roll number" />
+          <input id="manual-roll-no" type="text" class="form-control" data-i18n-placeholder="rollNoPlaceholder" placeholder="Enter student roll number" />
         </div>
 
         <div class="form-group">
           <select id="manual-meal-slot" class="form-control">
-            <option value="">Select meal slot</option>
-            <option value="Breakfast">Breakfast</option>
-            <option value="Lunch">Lunch</option>
-            <option value="Snacks">Snacks</option>
-            <option value="Dinner">Dinner</option>
+            <option value="" data-i18n="mealSlotSelectDefault">Select meal slot</option>
+            <option value="Breakfast" data-i18n="mealSlotBreakfast">Breakfast</option>
+            <option value="Lunch" data-i18n="mealSlotLunch">Lunch</option>
+            <option value="Snacks" data-i18n="mealSlotSnacks">Snacks</option>
+            <option value="Dinner" data-i18n="mealSlotDinner">Dinner</option>
           </select>
         </div>
 
         <div class="form-group">
-          <input id="manual-email" type="email" class="form-control" placeholder="Enter student email if available" />
+          <input id="manual-email" type="email" class="form-control" data-i18n-placeholder="studentEmailPlaceholder" placeholder="Enter student email if available" />
         </div>
 
-        <button class="btn btn--primary btn--full-width" onclick="submitManualEntry()">Record Manual Meal</button>
+        <button class="btn btn--primary btn--full-width" id="manual-entry-button" onclick="submitManualEntry()" data-i18n="manualMealButton">Record Manual Meal</button>
         <div id="manual-result" class="verification-result"></div>
       </div>
     </main>

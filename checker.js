@@ -7,6 +7,100 @@ let html5QrCode = null;
 let scannerRunning = false;
 let currentVerifiedQR = null;
 
+const CHECKER_TRANSLATIONS = {
+  en: {
+    checkerDashboardTitle: 'Smart Pass Checker',
+    menuLogout: 'Logout',
+    studentPortal: 'Student Portal',
+    loginHeading: 'Checker Login',
+    loginDesc: 'Enter the checker credentials to access the scanner.',
+    usernamePlaceholder: 'Username',
+    passwordPlaceholder: 'Password',
+    loginButton: 'Login',
+    scanVerifyHeading: 'QR Scan & Verify',
+    scanVerifyText: 'Scan the student QR or paste the QR payload to verify the meal pass.',
+    startScannerButton: 'Start Camera Scanner',
+    stopScannerButton: 'Stop Scanner',
+    pasteQrPlaceholder: 'Paste QR data here',
+    verifyQRButton: 'Verify QR',
+    clearButton: 'Clear',
+    manualMealHeading: 'Manual Meal Entry',
+    manualMealText: 'Use only this when a student does not have a QR code.',
+    rollNoPlaceholder: 'Enter student roll number',
+    mealSlotSelectDefault: 'Select meal slot',
+    mealSlotBreakfast: 'Breakfast',
+    mealSlotLunch: 'Lunch',
+    mealSlotSnacks: 'Snacks',
+    mealSlotDinner: 'Dinner',
+    studentEmailPlaceholder: 'Enter student email if available',
+    manualMealButton: 'Record Manual Meal',
+    languageToggleLabel: 'हिन्दी'
+  },
+  hi: {
+    checkerDashboardTitle: 'स्मार्ट पास चेकर',
+    menuLogout: 'लॉगआउट',
+    studentPortal: 'छात्र पोर्टल',
+    loginHeading: 'चेकर लॉगिन',
+    loginDesc: 'स्कैनर तक पहुँचने के लिए चेकर प्रमाण-पत्र दर्ज करें।',
+    usernamePlaceholder: 'उपयोगकर्ता नाम',
+    passwordPlaceholder: 'पासवर्ड',
+    loginButton: 'लॉगिन',
+    scanVerifyHeading: 'क्यूआर स्कैन और सत्यापित करें',
+    scanVerifyText: 'छात्र की क्यूआर स्कैन करें या क्यूआर डेटा पेस्ट करके भोजन पास सत्यापित करें।',
+    startScannerButton: 'कैमरा स्कैनर शुरू करें',
+    stopScannerButton: 'स्कैनर बंद करें',
+    pasteQrPlaceholder: 'यहाँ क्यूआर डेटा पेस्ट करें',
+    verifyQRButton: 'क्यूआर सत्यापित करें',
+    clearButton: 'साफ़ करें',
+    manualMealHeading: 'मैन्युअल भोजन प्रविष्टि',
+    manualMealText: 'केवल तभी उपयोग करें जब छात्र के पास क्यूआर कोड नहीं हो।',
+    rollNoPlaceholder: 'छात्र रोल नंबर दर्ज करें',
+    mealSlotSelectDefault: 'भोजन स्लॉट चुनें',
+    mealSlotBreakfast: 'नाश्ता',
+    mealSlotLunch: 'दोपहर का भोजन',
+    mealSlotSnacks: 'नाश्ता',
+    mealSlotDinner: 'रात का खाना',
+    studentEmailPlaceholder: 'यदि उपलब्ध हो तो छात्र ईमेल दर्ज करें',
+    manualMealButton: 'मैन्युअल भोजन रिकॉर्ड करें',
+    languageToggleLabel: 'English'
+  }
+};
+
+function getSavedLanguage() {
+  return localStorage.getItem('checker_language') || 'en';
+}
+
+function saveLanguage(lang) {
+  localStorage.setItem('checker_language', lang);
+}
+
+function translatePage(lang) {
+  const translations = CHECKER_TRANSLATIONS[lang] || CHECKER_TRANSLATIONS.en;
+  document.querySelectorAll('[data-i18n]').forEach(element => {
+    const key = element.getAttribute('data-i18n');
+    if (translations[key]) {
+      element.textContent = translations[key];
+    }
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+    const key = element.getAttribute('data-i18n-placeholder');
+    if (translations[key]) {
+      element.placeholder = translations[key];
+    }
+  });
+  const toggleBtn = document.getElementById('language-toggle-btn');
+  if (toggleBtn) {
+    toggleBtn.textContent = translations.languageToggleLabel || (lang === 'hi' ? 'English' : 'हिन्दी');
+  }
+}
+
+function toggleLanguage() {
+  const current = getSavedLanguage();
+  const next = current === 'en' ? 'hi' : 'en';
+  saveLanguage(next);
+  translatePage(next);
+}
+
 function showScreen(screenId) {
   document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
   document.getElementById(screenId).classList.add('active');
@@ -214,8 +308,11 @@ window.clearQrInput = clearQrInput;
 window.checkerLogin = checkerLogin;
 window.checkerLogout = checkerLogout;
 window.toggleMenu = toggleMenu;
+window.toggleLanguage = toggleLanguage;
 
 window.addEventListener('load', () => {
+  const lang = getSavedLanguage();
+  translatePage(lang);
   if (checkerToken && checkerUser) {
     showScreen('checker-dashboard-screen');
   } else {
